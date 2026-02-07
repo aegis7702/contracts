@@ -192,10 +192,8 @@ def _json_response_format() -> Dict:
 
 
 def _supports_response_format(model: Optional[str]) -> bool:
-    if not model:
-        return False
-    model = model.strip().lower()
-    return model.startswith("gpt-4o-mini")
+    # Best-effort: try structured outputs for any OpenAI model and fall back if unsupported.
+    return bool(model and model.strip())
 
 
 def _format_with_model(raw_text: str, provider: str, model: Optional[str]) -> Optional[Dict]:

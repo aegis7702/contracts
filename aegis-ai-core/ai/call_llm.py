@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional
 from enum import Enum
 from datetime import datetime, timedelta
 import os
+from pathlib import Path
 from openai import OpenAI
 try:
     from aios.secret import get_secret
@@ -45,6 +46,25 @@ class LLMCaller:
 class OpenAIProvider(BaseLLMProvider):
     def __init__(self, api_key=None):
         key = api_key or get_secret("OPENAI_APIKEY") or os.getenv("OPENAI_API_KEY")
+        if not key:
+            # PoC convenience: load aegis-ai-core/ai/.env when running scripts directly.
+            env_path = Path(__file__).resolve().with_name(".env")
+            if env_path.exists():
+                try:
+                    for line in env_path.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        if "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip()
+                        if k and os.getenv(k) is None:
+                            os.environ[k] = v
+                except Exception:
+                    pass
+            key = api_key or get_secret("OPENAI_APIKEY") or os.getenv("OPENAI_API_KEY")
         self.client = OpenAI(api_key=key)
 
     def chat(
@@ -69,33 +89,62 @@ class OpenAIProvider(BaseLLMProvider):
         if "max_tokens" in resp_kwargs and "max_output_tokens" not in resp_kwargs:
             resp_kwargs["max_output_tokens"] = int(resp_kwargs.pop("max_tokens"))
 
-        # Structured outputs는 chat.completions에서 우선 시도 (responses 미지원 케이스 대비)
-        if "response_format" in resp_kwargs:
-            chat_kwargs = dict(resp_kwargs)
-            if "max_tokens" in chat_kwargs:
-                chat_kwargs["max_completion_tokens"] = int(chat_kwargs.pop("max_tokens"))
-            if "max_output_tokens" in chat_kwargs and "max_completion_tokens" not in chat_kwargs:
-                chat_kwargs["max_completion_tokens"] = int(chat_kwargs.pop("max_output_tokens"))
-            chat_kwargs.pop("reasoning", None)
+        # Structured outputs:
+        # - chat.completions: response_format=...
+        # - responses: text={"format": response_format}
+        response_format = resp_kwargs.pop("response_format", None)
+        if response_format is not None:
+            # Prefer responses API; some newer models are responses-only.
             try:
-                response = self.client.chat.completions.create(model=model, messages=messages, **chat_kwargs)
-                message = response.choices[0].message
-                content = getattr(message, "content", None)
-                if content:
-                    return content
-                parsed = getattr(message, "parsed", None)
-                if parsed is not None:
-                    return json.dumps(parsed, ensure_ascii=False)
-                raise RuntimeError("Chat completion returned empty content for structured output.")
+                text_cfg = resp_kwargs.get("text")
+                if isinstance(text_cfg, dict):
+                    text_cfg = dict(text_cfg)
+                    text_cfg["format"] = response_format
+                else:
+                    text_cfg = {"format": response_format}
+                resp = self.client.responses.create(
+                    model=model,
+                    input=input_payload,
+                    text=text_cfg,
+                    **{k: v for k, v in resp_kwargs.items() if k != "text"},
+                )
+                out = _extract_response_text(resp)
+                if out:
+                    return out
+                return str(resp)
             except Exception:
-                # chat 실패 시 responses로 fallback (response_format 제거)
-                resp_kwargs.pop("response_format", None)
+                # Fall back to chat.completions if responses structured output is unavailable.
+                try:
+                    chat_kwargs = dict(resp_kwargs)
+                    if "max_tokens" in chat_kwargs:
+                        chat_kwargs["max_completion_tokens"] = int(chat_kwargs.pop("max_tokens"))
+                    if "max_output_tokens" in chat_kwargs and "max_completion_tokens" not in chat_kwargs:
+                        chat_kwargs["max_completion_tokens"] = int(chat_kwargs.pop("max_output_tokens"))
+                    chat_kwargs.pop("reasoning", None)
+                    response = self.client.chat.completions.create(
+                        model=model, messages=messages, response_format=response_format, **chat_kwargs
+                    )
+                    message = response.choices[0].message
+                    content = getattr(message, "content", None)
+                    if content:
+                        return content
+                    parsed = getattr(message, "parsed", None)
+                    if parsed is not None:
+                        return json.dumps(parsed, ensure_ascii=False)
+                    raise RuntimeError("Chat completion returned empty content for structured output.")
+                except Exception:
+                    # Give up on strict formatting and continue without response_format.
+                    response_format = None
 
         try:
+            resp_create_kwargs = dict(resp_kwargs)
+            # Only pass `text` when the caller provided it; `None` can be rejected by the SDK.
+            if "text" in resp_create_kwargs and resp_create_kwargs["text"] is None:
+                resp_create_kwargs.pop("text", None)
             resp = self.client.responses.create(
                 model=model,
                 input=input_payload,
-                **resp_kwargs,
+                **resp_create_kwargs,
             )
             # 최신 SDK는 output_text를 제공
             if hasattr(resp, "output_text") and resp.output_text:
@@ -123,6 +172,7 @@ class OpenAIProvider(BaseLLMProvider):
                     chat_kwargs["max_completion_tokens"] = int(chat_kwargs.pop("max_tokens"))
                 if "max_output_tokens" in chat_kwargs and "max_completion_tokens" not in chat_kwargs:
                     chat_kwargs["max_completion_tokens"] = int(chat_kwargs.pop("max_output_tokens"))
+                # response_format is only used on chat path when explicitly requested above.
                 chat_kwargs.pop("response_format", None)
                 response = self.client.chat.completions.create(model=model, messages=messages, **chat_kwargs)
                 message = response.choices[0].message
