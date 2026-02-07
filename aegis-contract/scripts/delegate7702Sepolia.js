@@ -18,7 +18,10 @@ async function main() {
     throw new Error(`Expected Sepolia (11155111), got ${chain.chainId.toString()}`);
   }
 
-  const [wallet] = await ethers.getSigners();
+  const signerPk = process.env.SIGNER_PK;
+  const wallet = signerPk
+    ? new ethers.Wallet(signerPk, ethers.provider)
+    : (await ethers.getSigners())[0];
   const expectedSigner = process.env.ADDRESS?.toLowerCase();
   if (expectedSigner && wallet.address.toLowerCase() !== expectedSigner) {
     throw new Error(`Signer mismatch. env ADDRESS=${process.env.ADDRESS}, signer=${wallet.address}`);
