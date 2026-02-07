@@ -9,6 +9,7 @@
     "node": "hardhat node",
     "test": "hardhat test",
     "deploy:localhost": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:local:all": "hardhat run scripts/deployLocalAll.js --network localhost",
     "deploy:sepolia": "hardhat run scripts/deploySepoliaAll.js --network sepolia",
     "delegate:sepolia": "hardhat run scripts/delegate7702Sepolia.js --network sepolia",
     "deploy:nofee:localhost": "hardhat run scripts/deployNoFee.js --network localhost",

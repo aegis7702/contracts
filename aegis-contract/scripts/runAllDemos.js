@@ -76,15 +76,25 @@ export async function runAllDemos({ withFee }) {
 
   // Seed registry
   const Verdict = { Safe: 1, Unsafe: 2 };
-  await (await registry.setVerdictCurrent(await moduleA.getAddress(), Verdict.Safe, "seed:ModuleA7702:Safe")).wait();
-  await (await registry.setVerdictCurrent(await moduleB.getAddress(), Verdict.Safe, "seed:ModuleB7702:Safe")).wait();
-  await (await registry.setVerdictCurrent(await moduleG.getAddress(), Verdict.Safe, "seed:ModuleG7702:Safe")).wait();
-  await (await registry.setVerdictCurrent(await moduleC.getAddress(), Verdict.Unsafe, "seed:ModuleC7702:Unsafe")).wait();
-  await (await registry.setVerdictCurrent(await moduleD.getAddress(), Verdict.Unsafe, "seed:ModuleD7702:Unsafe")).wait();
-  await (await registry.setVerdictCurrent(await moduleE.getAddress(), Verdict.Unsafe, "seed:ModuleE7702:Unsafe")).wait();
-  await (await registry.setVerdictCurrent(await moduleF.getAddress(), Verdict.Unsafe, "seed:ModuleF7702:Unsafe")).wait();
-  await (await registry.setVerdictCurrent(await moduleH.getAddress(), Verdict.Unsafe, "seed:ModuleH7702:Unsafe")).wait();
-  await (await registry.setVerdictCurrent(await moduleI.getAddress(), Verdict.Unsafe, "seed:ModuleI7702:Unsafe")).wait();
+  async function seed(name, contract, verdict) {
+    const verdictLabel = verdict === Verdict.Safe ? "Safe" : "Unsafe";
+    const summary = `seed:${name}:${verdictLabel}`;
+    const description = "Seeded by runAllDemos.";
+    const reasons = summary;
+    await (
+      await registry.setRecordCurrent(await contract.getAddress(), verdict, name, summary, description, reasons)
+    ).wait();
+  }
+
+  await seed("ModuleA7702", moduleA, Verdict.Safe);
+  await seed("ModuleB7702", moduleB, Verdict.Safe);
+  await seed("ModuleG7702", moduleG, Verdict.Safe);
+  await seed("ModuleC7702", moduleC, Verdict.Unsafe);
+  await seed("ModuleD7702", moduleD, Verdict.Unsafe);
+  await seed("ModuleE7702", moduleE, Verdict.Unsafe);
+  await seed("ModuleF7702", moduleF, Verdict.Unsafe);
+  await seed("ModuleH7702", moduleH, Verdict.Unsafe);
+  await seed("ModuleI7702", moduleI, Verdict.Unsafe);
 
   if (withFee) {
     await (

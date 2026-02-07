@@ -28,6 +28,7 @@ contract AegisGuardDelegator {
     error IllegalConfigMutation();
     error IllegalImplementationMutation();
     error ZeroAddress();
+    error IndexOutOfBounds(uint256 index, uint256 size);
 
     // -------------------------
     // Events
@@ -42,6 +43,7 @@ contract AegisGuardDelegator {
     event Forwarded(address indexed wallet, address indexed impl, bytes4 indexed selector, bool success);
     event ImplementationForceSet(address indexed wallet, address indexed impl, bytes32 codehash);
     event ForcedExecution(address indexed wallet, address indexed impl, bytes4 indexed selector, bool success);
+    event TxNoteSet(address indexed wallet, bytes32 indexed txHash, address indexed by);
 
     // -------------------------
     // Registry (global)
@@ -70,6 +72,22 @@ contract AegisGuardDelegator {
     bytes32 internal constant _CONFIG_SLOT =
         0x4b23459f0a84a2f955d2d9b2345fb64bea4d124b563876511bd09b5967836b00;
 
+    /// @dev ERC-7201 namespaced storage location for tx notes.
+    /// Namespace: "aegis7702.guard.txnotes"
+    /// Computed as: keccak256(abi.encode(uint256(keccak256(namespace)) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 internal constant _TXNOTES_SLOT =
+        bytes32(
+            uint256(
+                keccak256(
+                    abi.encode(
+                        uint256(keccak256("aegis7702.guard.txnotes")) - 1
+                    )
+                )
+            ) & ~uint256(0xff)
+        );
+
+    uint256 internal constant _TX_RECENT_CAP = 20;
+
     struct GuardConfig {
         bool frozen;
         address recovery;
@@ -82,6 +100,28 @@ contract AegisGuardDelegator {
         bytes32 slot = _CONFIG_SLOT;
         assembly {
             cfg.slot := slot
+        }
+    }
+
+    struct TxNote {
+        string name;
+        string summary;
+        string description;
+        string reasons;
+        uint64 updatedAt;
+    }
+
+    struct TxNotesState {
+        mapping(bytes32 => TxNote) noteOf;
+        mapping(uint256 => bytes32) recent; // ring buffer
+        uint256 cursor;
+        uint256 size;
+    }
+
+    function _txNotes() internal pure returns (TxNotesState storage st) {
+        bytes32 slot = _TXNOTES_SLOT;
+        assembly {
+            st.slot := slot
         }
     }
 
@@ -118,6 +158,11 @@ contract AegisGuardDelegator {
         if (msg.sender != address(this) && msg.sender != cfg.sentinel) revert NotSentinel();
     }
 
+    function _requireSentinel() internal view {
+        GuardConfig storage cfg = _config();
+        if (msg.sender != cfg.sentinel) revert NotSentinel();
+    }
+
     // -------------------------
     // Public view helpers
     // -------------------------
@@ -150,6 +195,55 @@ contract AegisGuardDelegator {
         return "AegisGuardDelegator/0.1";
     }
 
+    function aegis_getTxNote(bytes32 txHash)
+        external
+        view
+        returns (
+            string memory name,
+            string memory summary,
+            string memory description,
+            string memory reasons,
+            uint64 updatedAt
+        )
+    {
+        TxNote storage n = _txNotes().noteOf[txHash];
+        return (n.name, n.summary, n.description, n.reasons, n.updatedAt);
+    }
+
+    function aegis_getRecentTxs() external view returns (bytes32[] memory txs) {
+        TxNotesState storage st = _txNotes();
+        uint256 n = st.size;
+        txs = new bytes32[](n);
+        if (n == 0) return txs;
+
+        for (uint256 i = 0; i < n; i++) {
+            uint256 idx;
+            if (n == _TX_RECENT_CAP) {
+                idx = st.cursor + _TX_RECENT_CAP - 1 - i;
+                idx = idx % _TX_RECENT_CAP;
+            } else {
+                idx = n - 1 - i;
+            }
+            txs[i] = st.recent[idx];
+        }
+        return txs;
+    }
+
+    function aegis_getRecentTxAt(uint256 index) external view returns (bytes32 txHash) {
+        TxNotesState storage st = _txNotes();
+        uint256 n = st.size;
+        if (index >= n) revert IndexOutOfBounds(index, n);
+
+        uint256 idx;
+        if (n == _TX_RECENT_CAP) {
+            idx = st.cursor + _TX_RECENT_CAP - 1 - index;
+            idx = idx % _TX_RECENT_CAP;
+        } else {
+            idx = n - 1 - index;
+        }
+        return st.recent[idx];
+    }
+
     // -------------------------
     // Wallet setup / controls
     // -------------------------
@@ -180,6 +274,66 @@ contract AegisGuardDelegator {
         _setImplementationChecked(impl);
 
         emit AegisInitialized(address(this), impl, recovery, sentinel);
+    }
+
+    /// @notice Sentinel-only: store tx note in wallet storage (keyed by txHash).
+    function aegis_setTxNote(
+        bytes32 txHash,
+        string calldata name,
+        string calldata summary,
+        string calldata description,
+        string calldata reasons
+    ) external {
+        _requireSentinel();
+        _setTxNote(txHash, name, summary, description, reasons);
+    }
+
+    /// @notice Sentinel-only: freeze wallet and store tx note in one tx.
+    function aegis_freezeWithTxNote(
+        bytes32 txHash,
+        string calldata freezeReason,
+        string calldata name,
+        string calldata summary,
+        string calldata description,
+        string calldata reasons
+    ) external {
+        _requireSentinel();
+        _setTxNote(txHash, name, summary, description, reasons);
+
+        GuardConfig storage cfg = _config();
+        cfg.frozen = true;
+        cfg.freezeReason = freezeReason;
+        emit FrozenSet(address(this), freezeReason, msg.sender);
+    }
+
+    function _setTxNote(
+        bytes32 txHash,
+        string calldata name,
+        string calldata summary,
+        string calldata description,
+        string calldata reasons
+    ) internal {
+        TxNotesState storage st = _txNotes();
+        TxNote storage n = st.noteOf[txHash];
+        bool firstWrite = n.updatedAt == 0;
+        n.name = name;
+        n.summary = summary;
+        n.description = description;
+        n.reasons = reasons;
+        n.updatedAt = uint64(block.timestamp);
+
+        if (firstWrite) {
+            uint256 idx = st.cursor;
+            st.recent[idx] = txHash;
+            unchecked {
+                idx += 1;
+            }
+            if (idx == _TX_RECENT_CAP) idx = 0;
+            st.cursor = idx;
+            if (st.size < _TX_RECENT_CAP) st.size += 1;
+        }
+
+        emit TxNoteSet(address(this), txHash, msg.sender);
     }
 
     /// @notice Change active implementation. Only self-call, and only when not frozen.

@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @notice Public registry that stores:
-/// - (implAddress + codehash) -> SAFE/UNSAFE
-/// - (optional) a human-readable reason string for the verdict (PoC convenience)
-/// - a fixed-size ring buffer of the most recent updates (PoC convenience)
+/// @notice Public registry that stores (implAddress + extcodehash(impl)) keyed records:
+/// - verdict: SAFE / UNSAFE / UNKNOWN
+/// - name / summary / description / reasons: human-readable notes
+/// - updatedAt: timestamp for last update
+/// - a fixed-size ring buffer of the most recent impl updates (PoC convenience)
+///
+/// Also stores optional "swap compatibility" records keyed by (fromImpl, fromCodehash, toImpl, toCodehash).
 contract ImplSafetyRegistry {
     enum Verdict {
         Unknown,
@@ -12,10 +15,19 @@ contract ImplSafetyRegistry {
         Unsafe
     }
 
+    struct Record {
+        Verdict verdict;
+        uint64 updatedAt;
+        string name;
+        string summary;
+        string description;
+        string reasons;
+    }
+
     address public owner;
     mapping(address => bool) public publisher;
-    mapping(bytes32 => Verdict) private _verdictOf; // key = keccak256(impl, codehash)
-    mapping(bytes32 => string) private _reasonOf; // key = keccak256(impl, codehash)
+    mapping(bytes32 => Record) private _recordOf; // key = keccak256(impl, codehash)
+    mapping(bytes32 => Record) private _swapRecordOf; // key = keccak256(fromImpl, fromCodehash, toImpl, toCodehash)
 
     uint256 public immutable recentCap;
     uint256 public recentCursor;
@@ -30,7 +42,8 @@ contract ImplSafetyRegistry {
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PublisherSet(address indexed publisher, bool allowed);
-    event VerdictUpdated(address indexed impl, bytes32 indexed codehash, Verdict verdict, string reason, address indexed by);
+    event RecordUpdated(address indexed impl, bytes32 indexed codehash, Verdict verdict, uint64 updatedAt, address indexed by);
+    event SwapRecordUpdated(address indexed fromImpl, address indexed toImpl, Verdict verdict, uint64 updatedAt, address indexed by);
 
     error NotOwner();
     error NotPublisher();
@@ -75,14 +88,36 @@ contract ImplSafetyRegistry {
         return keccak256(abi.encodePacked(impl, codehash));
     }
 
-    function setVerdict(address impl, bytes32 codehash, Verdict verdict, string calldata reason) external onlyPublisher {
-        _setVerdict(impl, codehash, verdict, reason);
+    function setRecord(
+        address impl,
+        bytes32 codehash,
+        Verdict verdict,
+        string calldata name,
+        string calldata summary,
+        string calldata description,
+        string calldata reasons
+    ) external onlyPublisher {
+        _setRecord(impl, codehash, verdict, name, summary, description, reasons);
     }
 
-    function _setVerdict(address impl, bytes32 codehash, Verdict verdict, string calldata reason) internal {
+    function _setRecord(
+        address impl,
+        bytes32 codehash,
+        Verdict verdict,
+        string calldata name,
+        string calldata summary,
+        string calldata description,
+        string calldata reasons
+    ) internal {
+        if (impl == address(0)) revert ZeroAddress();
         bytes32 k = _key(impl, codehash);
-        _verdictOf[k] = verdict;
-        _reasonOf[k] = reason;
+        Record storage r = _recordOf[k];
+        r.verdict = verdict;
+        r.updatedAt = uint64(block.timestamp);
+        r.name = name;
+        r.summary = summary;
+        r.description = description;
+        r.reasons = reasons;
 
         uint256 idx = recentCursor;
         _recent[idx] = RecentPair({impl: impl, codehash: codehash});
@@ -95,26 +130,58 @@ contract ImplSafetyRegistry {
             recentSize += 1;
         }
 
-        emit VerdictUpdated(impl, codehash, verdict, reason, msg.sender);
+        emit RecordUpdated(impl, codehash, verdict, r.updatedAt, msg.sender);
     }
 
-    /// @notice Convenience helper: record verdict for current extcodehash(impl)
-    function setVerdictCurrent(address impl, Verdict verdict, string calldata reason) external onlyPublisher {
+    /// @notice Convenience helper: record for current extcodehash(impl)
+    function setRecordCurrent(
+        address impl,
+        Verdict verdict,
+        string calldata name,
+        string calldata summary,
+        string calldata description,
+        string calldata reasons
+    ) external onlyPublisher {
         bytes32 codehash = extcodehash(impl);
-        _setVerdict(impl, codehash, verdict, reason);
+        _setRecord(impl, codehash, verdict, name, summary, description, reasons);
     }
 
     function getVerdict(address impl, bytes32 codehash) external view returns (Verdict) {
-        return _verdictOf[_key(impl, codehash)];
+        return _recordOf[_key(impl, codehash)].verdict;
     }
 
-    function getReason(address impl, bytes32 codehash) external view returns (string memory) {
-        return _reasonOf[_key(impl, codehash)];
+    function getRecord(address impl, bytes32 codehash)
+        external
+        view
+        returns (
+            Verdict verdict,
+            string memory name,
+            string memory summary,
+            string memory description,
+            string memory reasons,
+            uint64 updatedAt
+        )
+    {
+        Record storage r = _recordOf[_key(impl, codehash)];
+        return (r.verdict, r.name, r.summary, r.description, r.reasons, r.updatedAt);
     }
 
-    function getRecord(address impl, bytes32 codehash) external view returns (Verdict verdict, string memory reason) {
-        bytes32 k = _key(impl, codehash);
-        return (_verdictOf[k], _reasonOf[k]);
+    function getRecordCurrent(address impl)
+        external
+        view
+        returns (
+            Verdict verdict,
+            string memory name,
+            string memory summary,
+            string memory description,
+            string memory reasons,
+            uint64 updatedAt,
+            bytes32 codehash
+        )
+    {
+        codehash = extcodehash(impl);
+        Record storage r = _recordOf[_key(impl, codehash)];
+        return (r.verdict, r.name, r.summary, r.description, r.reasons, r.updatedAt, codehash);
     }
 
     function getRecentPairs()
@@ -167,12 +234,164 @@ contract ImplSafetyRegistry {
     }
 
     function isSafe(address impl, bytes32 codehash) external view returns (bool) {
-        return _verdictOf[_key(impl, codehash)] == Verdict.Safe;
+        return _recordOf[_key(impl, codehash)].verdict == Verdict.Safe;
     }
 
     function isSafeCurrent(address impl) external view returns (bool) {
         bytes32 codehash = extcodehash(impl);
-        return _verdictOf[_key(impl, codehash)] == Verdict.Safe;
+        return _recordOf[_key(impl, codehash)].verdict == Verdict.Safe;
+    }
+
+    function getRecentRecords()
+        external
+        view
+        returns (
+            address[] memory impls,
+            bytes32[] memory codehashes,
+            Verdict[] memory verdicts,
+            uint64[] memory updatedAts,
+            string[] memory names,
+            string[] memory summaries,
+            string[] memory descriptions,
+            string[] memory reasonsList
+        )
+    {
+        uint256 n = recentSize;
+        impls = new address[](n);
+        codehashes = new bytes32[](n);
+        verdicts = new Verdict[](n);
+        updatedAts = new uint64[](n);
+        names = new string[](n);
+        summaries = new string[](n);
+        descriptions = new string[](n);
+        reasonsList = new string[](n);
+
+        if (n == 0) {
+            return (impls, codehashes, verdicts, updatedAts, names, summaries, descriptions, reasonsList);
+        }
+
+        for (uint256 i = 0; i < n; i++) {
+            uint256 idx;
+            if (n == recentCap) {
+                idx = recentCursor + recentCap - 1 - i;
+                idx = idx % recentCap;
+            } else {
+                idx = n - 1 - i;
+            }
+
+            RecentPair storage p = _recent[idx];
+            impls[i] = p.impl;
+            codehashes[i] = p.codehash;
+
+            Record storage r = _recordOf[_key(p.impl, p.codehash)];
+            verdicts[i] = r.verdict;
+            updatedAts[i] = r.updatedAt;
+            names[i] = r.name;
+            summaries[i] = r.summary;
+            descriptions[i] = r.description;
+            reasonsList[i] = r.reasons;
+        }
+
+        return (impls, codehashes, verdicts, updatedAts, names, summaries, descriptions, reasonsList);
+    }
+
+    // -------------------------
+    // Swap compatibility records
+    // -------------------------
+
+    function _swapKey(address fromImpl, bytes32 fromCodehash, address toImpl, bytes32 toCodehash)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(fromImpl, fromCodehash, toImpl, toCodehash));
+    }
+
+    function setSwapRecord(
+        address fromImpl,
+        bytes32 fromCodehash,
+        address toImpl,
+        bytes32 toCodehash,
+        Verdict verdict,
+        string calldata name,
+        string calldata summary,
+        string calldata description,
+        string calldata reasons
+    ) external onlyPublisher {
+        _setSwapRecord(fromImpl, fromCodehash, toImpl, toCodehash, verdict, name, summary, description, reasons);
+    }
+
+    function setSwapRecordCurrent(
+        address fromImpl,
+        address toImpl,
+        Verdict verdict,
+        string calldata name,
+        string calldata summary,
+        string calldata description,
+        string calldata reasons
+    ) external onlyPublisher {
+        bytes32 fromCodehash = extcodehash(fromImpl);
+        bytes32 toCodehash = extcodehash(toImpl);
+        _setSwapRecord(fromImpl, fromCodehash, toImpl, toCodehash, verdict, name, summary, description, reasons);
+    }
+
+    function _setSwapRecord(
+        address fromImpl,
+        bytes32 fromCodehash,
+        address toImpl,
+        bytes32 toCodehash,
+        Verdict verdict,
+        string calldata name,
+        string calldata summary,
+        string calldata description,
+        string calldata reasons
+    ) internal {
+        if (fromImpl == address(0) || toImpl == address(0)) revert ZeroAddress();
+        bytes32 k = _swapKey(fromImpl, fromCodehash, toImpl, toCodehash);
+        Record storage r = _swapRecordOf[k];
+        r.verdict = verdict;
+        r.updatedAt = uint64(block.timestamp);
+        r.name = name;
+        r.summary = summary;
+        r.description = description;
+        r.reasons = reasons;
+        emit SwapRecordUpdated(fromImpl, toImpl, verdict, r.updatedAt, msg.sender);
+    }
+
+    function getSwapRecord(address fromImpl, bytes32 fromCodehash, address toImpl, bytes32 toCodehash)
+        external
+        view
+        returns (
+            Verdict verdict,
+            string memory name,
+            string memory summary,
+            string memory description,
+            string memory reasons,
+            uint64 updatedAt
+        )
+    {
+        Record storage r = _swapRecordOf[_swapKey(fromImpl, fromCodehash, toImpl, toCodehash)];
+        return (r.verdict, r.name, r.summary, r.description, r.reasons, r.updatedAt);
+    }
+
+    function getSwapRecordCurrent(address fromImpl, address toImpl)
+        external
+        view
+        returns (
+            Verdict verdict,
+            string memory name,
+            string memory summary,
+            string memory description,
+            string memory reasons,
+            uint64 updatedAt,
+            bytes32 fromCodehash,
+            bytes32 toCodehash
+        )
+    {
+        fromCodehash = extcodehash(fromImpl);
+        toCodehash = extcodehash(toImpl);
+        Record storage r = _swapRecordOf[_swapKey(fromImpl, fromCodehash, toImpl, toCodehash)];
+        return (r.verdict, r.name, r.summary, r.description, r.reasons, r.updatedAt, fromCodehash, toCodehash);
     }
 
     function extcodehash(address a) public view returns (bytes32 h) {

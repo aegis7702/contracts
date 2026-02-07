@@ -67,21 +67,25 @@ async function main() {
     Unsafe: 2,
   };
 
-  async function mark(addr, v, reason = "") {
-    const tx = await registry.setVerdictCurrent(addr, v, reason);
+  async function mark(name, addr, v) {
+    const verdictLabel = v === Verdict.Safe ? "Safe" : v === Verdict.Unsafe ? "Unsafe" : "Unknown";
+    const summary = `seed:${name}:${verdictLabel}`;
+    const description = "Seeded by deploy script.";
+    const reasons = summary;
+    const tx = await registry.setRecordCurrent(addr, v, name, summary, description, reasons);
     await tx.wait();
   }
 
-  await mark(moduleA, Verdict.Safe, "seed:ModuleA7702:Safe");
-  await mark(moduleB, Verdict.Safe, "seed:ModuleB7702:Safe");
-  await mark(moduleG, Verdict.Safe, "seed:ModuleG7702:Safe");
+  await mark("ModuleA7702", moduleA, Verdict.Safe);
+  await mark("ModuleB7702", moduleB, Verdict.Safe);
+  await mark("ModuleG7702", moduleG, Verdict.Safe);
 
-  await mark(moduleC, Verdict.Unsafe, "seed:ModuleC7702:Unsafe");
-  await mark(moduleD, Verdict.Unsafe, "seed:ModuleD7702:Unsafe");
-  await mark(moduleE, Verdict.Unsafe, "seed:ModuleE7702:Unsafe");
-  await mark(moduleF, Verdict.Unsafe, "seed:ModuleF7702:Unsafe");
-  await mark(moduleH, Verdict.Unsafe, "seed:ModuleH7702:Unsafe");
-  await mark(moduleI, Verdict.Unsafe, "seed:ModuleI7702:Unsafe");
+  await mark("ModuleC7702", moduleC, Verdict.Unsafe);
+  await mark("ModuleD7702", moduleD, Verdict.Unsafe);
+  await mark("ModuleE7702", moduleE, Verdict.Unsafe);
+  await mark("ModuleF7702", moduleF, Verdict.Unsafe);
+  await mark("ModuleH7702", moduleH, Verdict.Unsafe);
+  await mark("ModuleI7702", moduleI, Verdict.Unsafe);
 
   console.log("\nRegistry seeded.");
   console.log("\nNext:");

@@ -1,0 +1,26 @@
+.env*
+
+node_modules/
+
+deployments/
+
+# Hardhat build outputs
+aegis-contract/artifacts/
+aegis-contract/cache/
+aegis-contract/typechain/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Local venv / runtime state
+aegis-ai-core/.venv/
+aegis-ai-core/server_state/
+
+# OS
+.DS_Store
+
+# e2e logs
+tmp/

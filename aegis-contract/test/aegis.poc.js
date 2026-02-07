@@ -49,19 +49,38 @@ describe("7702 Aegis PoC", function () {
 
     // seed registry
     const Verdict = { Safe: 1, Unsafe: 2 };
-    await (await registry.setVerdictCurrent(await moduleA.getAddress(), Verdict.Safe, "seed:ModuleA7702:Safe")).wait();
-    await (await registry.setVerdictCurrent(await moduleC.getAddress(), Verdict.Unsafe, "seed:ModuleC7702:Unsafe")).wait();
-    await (await registry.setVerdictCurrent(await moduleE.getAddress(), Verdict.Unsafe, "seed:ModuleE7702:Unsafe")).wait();
-    await (await registry.setVerdictCurrent(await moduleF.getAddress(), Verdict.Unsafe, "seed:ModuleF7702:Unsafe")).wait();
+    async function seed(name, contract, verdict) {
+      const verdictLabel = verdict === Verdict.Safe ? "Safe" : "Unsafe";
+      const summary = `seed:${name}:${verdictLabel}`;
+      const description = "Seeded by test.";
+      const reasons = summary;
+      await (
+        await registry.setRecordCurrent(await contract.getAddress(), verdict, name, summary, description, reasons)
+      ).wait();
+    }
 
-    // sanity: reason storage + "recent N" ring buffer order (newest-first)
+    await seed("ModuleA7702", moduleA, Verdict.Safe);
+    await seed("ModuleC7702", moduleC, Verdict.Unsafe);
+    await seed("ModuleE7702", moduleE, Verdict.Unsafe);
+    await seed("ModuleF7702", moduleF, Verdict.Unsafe);
+
+    // sanity: record storage + "recent N" ring buffer order (newest-first)
     const moduleAAddr = await moduleA.getAddress();
     const moduleCAddr = await moduleC.getAddress();
     const moduleEAddr = await moduleE.getAddress();
     const moduleFAddr = await moduleF.getAddress();
 
     const codehashA = await registry.extcodehash(moduleAAddr);
-    assert.equal(await registry.getReason(moduleAAddr, codehashA), "seed:ModuleA7702:Safe");
+    const [verdictA, nameA, summaryA, descriptionA, reasonsA, updatedAtA] = await registry.getRecord(
+      moduleAAddr,
+      codehashA
+    );
+    assert.equal(Number(verdictA), Verdict.Safe);
+    assert.equal(nameA, "ModuleA7702");
+    assert.equal(summaryA, "seed:ModuleA7702:Safe");
+    assert.equal(descriptionA, "Seeded by test.");
+    assert.equal(reasonsA, "seed:ModuleA7702:Safe");
+    assert.equal(Number(updatedAtA) > 0, true);
 
     const [impls] = await registry.getRecentPairs();
     assert.deepEqual(
@@ -102,6 +121,32 @@ describe("7702 Aegis PoC", function () {
         sentinel.address
       )
     ).wait();
+
+    // Sentinel-only tx notes
+    const walletAsGuardBySentinel = new ethers.Contract(wallet.address, guard.interface, sentinel);
+    const txh1 = ethers.id("tx-note-1");
+    await (await walletAsGuardBySentinel.aegis_setTxNote(txh1, "n1", "s1", "d1", "r1")).wait();
+    {
+      const [name, summary, description, reasons, updatedAt] = await walletAsGuard.aegis_getTxNote(txh1);
+      assert.equal(name, "n1");
+      assert.equal(summary, "s1");
+      assert.equal(description, "d1");
+      assert.equal(reasons, "r1");
+      assert.equal(Number(updatedAt) > 0, true);
+    }
+
+    const txh2 = ethers.id("tx-note-2");
+    await (await walletAsGuardBySentinel.aegis_setTxNote(txh2, "n2", "s2", "d2", "r2")).wait();
+    {
+      const recent = await walletAsGuard.aegis_getRecentTxs();
+      assert.deepEqual(
+        recent.map((x) => x.toLowerCase()),
+        [txh2, txh1].map((x) => x.toLowerCase()),
+        "recent tx ring should be newest-first"
+      );
+      const mostRecentTx = await walletAsGuard.aegis_getRecentTxAt(0);
+      assert.equal(mostRecentTx.toLowerCase(), txh2.toLowerCase());
+    }
 
     // Call dispatch through the wallet (self-call). This should charge fee.
     const walletAsA = new ethers.Contract(wallet.address, moduleA.interface, wallet);
@@ -158,5 +203,16 @@ describe("7702 Aegis PoC", function () {
     }
     const afterFallbackFail = await token.balanceOf(feeRecipient.address);
     assert.equal((afterFallbackFail - beforeFallbackFail).toString(), "0", "fee should roll back on fallback revert");
+
+    // Freeze-with-note (sentinel-only)
+    const txh3 = ethers.id("tx-note-3");
+    await (await walletAsGuardBySentinel.aegis_freezeWithTxNote(txh3, "freeze-reason", "n3", "s3", "d3", "r3")).wait();
+    assert.equal(await walletAsGuard.aegis_isFrozen(), true, "wallet should be frozen");
+    assert.equal(await walletAsGuard.aegis_getFreezeReason(), "freeze-reason", "freeze reason should match");
+    {
+      const [name, summary] = await walletAsGuard.aegis_getTxNote(txh3);
+      assert.equal(name, "n3");
+      assert.equal(summary, "s3");
+    }
   });
 });

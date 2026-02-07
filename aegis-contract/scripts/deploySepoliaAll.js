@@ -42,6 +42,14 @@ async function main() {
   deployments[registry.name] = registry;
   console.log(`${registry.name}: ${registry.address}`);
 
+  // Allow publisher key (service) to write registry records.
+  const publisher = process.env.PUBLISHER_ADDRESS;
+  if (publisher) {
+    const tx = await registry.instance.setPublisher(publisher, true);
+    await tx.wait();
+    console.log("publisher enabled:", publisher);
+  }
+
   const tokenFactory = await ethers.getContractFactory("AegisToken");
   const token = await tokenFactory.deploy(
     "Aegis Token",
@@ -113,19 +121,31 @@ async function main() {
 
   const seedTxs = [];
   for (const moduleName of safeModules) {
-    const tx = await registry.instance.setVerdictCurrent(
+    const summary = `seed:${moduleName}:Safe`;
+    const description = "Seeded by deploySepoliaAll.";
+    const reasons = summary;
+    const tx = await registry.instance.setRecordCurrent(
       deployments[moduleName].address,
       Verdict.Safe,
-      `seed:${moduleName}:Safe`
+      moduleName,
+      summary,
+      description,
+      reasons
     );
     await tx.wait();
     seedTxs.push({ moduleName, verdict: "Safe", txHash: tx.hash });
   }
   for (const moduleName of unsafeModules) {
-    const tx = await registry.instance.setVerdictCurrent(
+    const summary = `seed:${moduleName}:Unsafe`;
+    const description = "Seeded by deploySepoliaAll.";
+    const reasons = summary;
+    const tx = await registry.instance.setRecordCurrent(
       deployments[moduleName].address,
       Verdict.Unsafe,
-      `seed:${moduleName}:Unsafe`
+      moduleName,
+      summary,
+      description,
+      reasons
     );
     await tx.wait();
     seedTxs.push({ moduleName, verdict: "Unsafe", txHash: tx.hash });
@@ -166,12 +186,23 @@ async function main() {
 
   await fs.mkdir("deployments", { recursive: true });
   const ts = out.deployedAt.replace(/[:.]/g, "-");
+  const chainId = out.chainId;
+  const latestChainPath = `deployments/chain-${chainId}-latest.json`;
+  const snapshotChainPath = `deployments/chain-${chainId}-${ts}.json`;
+
+  // Back-compat aliases
   const latestPath = "deployments/sepolia-latest.json";
   const snapshotPath = `deployments/sepolia-${ts}.json`;
-  await fs.writeFile(latestPath, JSON.stringify(out, null, 2));
-  await fs.writeFile(snapshotPath, JSON.stringify(out, null, 2));
+
+  const payload = JSON.stringify(out, null, 2);
+  await fs.writeFile(latestChainPath, payload);
+  await fs.writeFile(snapshotChainPath, payload);
+  await fs.writeFile(latestPath, payload);
+  await fs.writeFile(snapshotPath, payload);
 
   console.log("\nDeployment complete.");
+  console.log("Saved:", latestChainPath);
+  console.log("Saved:", snapshotChainPath);
   console.log("Saved:", latestPath);
   console.log("Saved:", snapshotPath);
 }

@@ -38,7 +38,14 @@ const SEPOLIA_RPC_URL =
   process.env.SEPOLIA_RPC_URL ||
   process.env.RPC_URL ||
   "https://ethereum-sepolia-rpc.publicnode.com";
-const SEPOLIA_PK = process.env.PK || process.env.PRIVATE_KEY;
+const SEPOLIA_ACCOUNTS = [
+  process.env.DEPLOYER_PK,
+  process.env.PUBLISHER_PK,
+  process.env.SENTINEL_PK,
+  process.env.PK,
+  process.env.PRIVATE_KEY,
+].filter(Boolean);
+const SEPOLIA_ACCOUNTS_UNIQUE = [...new Set(SEPOLIA_ACCOUNTS)];
 
 export default defineConfig({
   plugins: [hardhatEthers, hardhatMocha],
@@ -53,6 +60,7 @@ export default defineConfig({
       default: {
         version: "0.8.24",
         settings: {
+          viaIR: true,
           optimizer: { enabled: true, runs: 200 },
         },
       },
@@ -82,7 +90,7 @@ export default defineConfig({
       type: "http",
       chainType: "l1",
       url: SEPOLIA_RPC_URL,
-      accounts: SEPOLIA_PK ? [SEPOLIA_PK] : [],
+      accounts: SEPOLIA_ACCOUNTS_UNIQUE,
     },
   },
 });

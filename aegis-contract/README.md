@@ -14,9 +14,15 @@
 ### On-chain
 - `ImplSafetyRegistry.sol`
   - `(implAddress, extcodehash(impl)) -> SAFE/UNSAFE` verdict를 저장하는 공용 Registry
+  - 저장 필드:
+    - `name: string`
+    - `summary: string`
+    - `description: string` (2-3줄, `\n` 개행)
+    - `reasons: string` (백엔드가 `reasons[]`를 join해서 저장)
+    - `updatedAt: uint64`
   - PoC 편의 기능:
-    - verdict reason(`string`) 저장
-    - 최근 N개 업데이트(impl, codehash) ring buffer 저장 (기본 N=5, 배포 스크립트도 5로 설정)
+    - 최근 N개 업데이트 ring buffer 저장 (기본 N=5, 배포 스크립트도 5로 설정)
+    - swap 호환성 리스크용 별도 기록(현재 impl -> 새 impl)
 
 - `AegisGuardDelegator.sol`
   - 7702에서 EOA가 위임하는 Guard(Delegator)
@@ -25,6 +31,10 @@
     2) `ImplSafetyRegistry`를 조회해 현재 impl이 SAFE인지 확인
     3) `AegisFeePolicy`를 조회해 실행 시 토큰 fee 징수(충전형)
     4) SAFE면 impl로 `delegatecall`
+  - TxNote(사후감사 기록):
+    - `txHash -> {name, summary, description, reasons, updatedAt}` 를 지갑(EOA) 스토리지에 저장
+    - sentinel 전용 기록 함수 제공
+    - 최근 20개 txHash ring buffer 제공
 
 - `AegisFeePolicy.sol`
   - 서비스 제공자(owner/operator)가 지갑별/기본 fee 정책을 설정하는 컨트랙트
@@ -136,22 +146,27 @@ npx hardhat run scripts/demo7702NoFee.js --network localhost
 > 참고: 이 PoC는 자주 ABI가 바뀝니다(예: Registry의 recent N ring buffer, reason 타입 string 전환 등).
 > 아래 주소가 현재 워킹트리의 ABI와 다를 수 있으니, 필요하면 `scripts/deploySepoliaAll.js`로 재배포 후 `deployments/sepolia-latest.json`을 갱신하세요.
 
-- deployer: `0x75c027b280F063BAf49A71c548Aa46Ed84434600`
-- `ImplSafetyRegistry`: `0x5707169276D19D9209c7aDB7c2DdC2FA256F8aA1`
-- `AegisToken`: `0x4175046d14cf65BFFcF51ec6A470e4A8FbA1a402`
-- `AegisFeePolicy`: `0x6fDdD46E25F51512F46b1b0ac9759Cc683aB43c7`
-- `AegisGuardDelegator`: `0x45715e7E41098de7B1726a7a182268da4aEB9804`
-- `ModuleA7702`: `0x16b0e675C0CE766e82bf9B58dC2d2F247985B302`
-- `ModuleB7702`: `0xE6C896ac6B6195Da7daDF66Fe5DC39FBb0e7321b`
-- `ModuleC7702`: `0x373325c876eF8437069453e050a5f963a20Bd928`
-- `ModuleD7702`: `0xC62036a6C1ca310ab6029D2c4630383a68674073`
-- `ModuleE7702`: `0x8Cbc082c5A2F5235c18aEF310124CcA8372195bb`
-- `ModuleF7702`: `0x8871e4009E48B2b1C9b2B0b5fc37e4D187a3f037`
-- `ModuleG7702`: `0x7450981F49fd218B7751B0E828fFBaeEf7307258`
+- 배포 상세(주소/tx hash/SAFE·UNSAFE 시딩 tx 포함): `deployments/chain-11155111-latest.json`
+
+- deployedAt: `2026-02-07T15:43:22.249Z`
+- deployer: `0xfFf6679e75B926DA54f53FAF9Cf2594F86BB1Aa8`
+- `ImplSafetyRegistry`: `0x01F95904ecd0848A28bDEEBB78FbFbac5aD7F2e6`
+- `AegisToken`: `0xa9F884D633aeC8f3893631E29Cf0264c11899f55`
+- `AegisFeePolicy`: `0x411D01aDe2eCDFb878239A233601bAf136Cfc61E`
+- `AegisGuardDelegator`: `0x2f7bB54E59DadC1f593FAea2c84092825Fd0533B`
+- `ModuleA7702`: `0x803Bc23698933e062210683357Ec20c394131e56`
+- `ModuleB7702`: `0xa453dbeb0f8f04b8fcA341260760cfDb78B40CcC`
+- `ModuleC7702`: `0xD506b539cb8d3a99C5308E2d8d4A49384F0207E1`
+- `ModuleD7702`: `0x8f5b5f03a92382b4c49e9e446061486A9de09A0B`
+- `ModuleE7702`: `0x416ebc59c5223F988651d3A3D3AC74E1B9ff6a9B`
+- `ModuleF7702`: `0x2a72c0E2f7eB22eb1CB7fe54764290555D122978`
+- `ModuleG7702`: `0x529C8029401EE3443a1B44d33173ff510f3EbB7d`
+- `ModuleH7702`: `0xCeE24d93AfcFa95b07Ed25bBaa679ed5DeC3743B`
+- `ModuleI7702`: `0xDe2E0c61251d901FD65dFf4e3E175fbBA04D3734`
 
 배포 상세(tx hash, SAFE/UNSAFE 시딩 tx 포함):
 - `deployments/sepolia-latest.json`
-- `deployments/sepolia-2026-02-07T04-57-31-823Z.json`
+- `deployments/sepolia-2026-02-07T15-43-22-249Z.json`
 
 7702 위임만 따로 적용(논스 자동 계산):
 
