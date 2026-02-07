@@ -11,14 +11,14 @@ import {AegisFeePolicy} from "./AegisFeePolicy.sol";
 /// 4) delegates all unknown calls to active implementation
 ///
 /// Design constraints (per request):
-/// - Registry stores ONLY (implAddress + codehash) -> safe/unsafe
+/// - Guard enforcement uses ONLY (implAddress + codehash) -> safe/unsafe from the registry
 /// - Freeze/recovery are per-wallet (stored in the delegated account's storage)
 /// - Guard keeps state minimal; uses standardized hash slots to avoid collisions
 contract AegisGuardDelegator {
     // -------------------------
     // Errors
     // -------------------------
-    error Frozen(bytes32 reason);
+    error Frozen(string reason);
     error NotSelf();
     error NotRecovery();
     error NotSentinel();
@@ -34,7 +34,7 @@ contract AegisGuardDelegator {
     // -------------------------
     event AegisInitialized(address indexed wallet, address indexed impl, address recovery, address sentinel);
     event ImplementationSet(address indexed wallet, address indexed impl, bytes32 codehash);
-    event FrozenSet(address indexed wallet, bytes32 reason, address indexed by);
+    event FrozenSet(address indexed wallet, string reason, address indexed by);
     event Unfrozen(address indexed wallet, address indexed by);
     event RecoverySet(address indexed wallet, address indexed recovery);
     event SentinelSet(address indexed wallet, address indexed sentinel);
@@ -74,7 +74,7 @@ contract AegisGuardDelegator {
         bool frozen;
         address recovery;
         address sentinel;
-        bytes32 freezeReason;
+        string freezeReason;
         uint256 configNonce; // reserved for future (e.g., signed meta-tx), PoC uses for replay protection if needed
     }
 
@@ -130,7 +130,7 @@ contract AegisGuardDelegator {
         return _config().frozen;
     }
 
-    function aegis_getFreezeReason() external view returns (bytes32) {
+    function aegis_getFreezeReason() external view returns (string memory) {
         return _config().freezeReason;
     }
 
@@ -175,7 +175,7 @@ contract AegisGuardDelegator {
         cfg.recovery = recovery;
         cfg.sentinel = sentinel;
         cfg.frozen = false;
-        cfg.freezeReason = bytes32(0);
+        cfg.freezeReason = "";
 
         _setImplementationChecked(impl);
 
@@ -240,7 +240,7 @@ contract AegisGuardDelegator {
     }
 
     /// @notice Freeze wallet (blocks forwarding). Callable by self-call OR configured sentinel.
-    function aegis_freeze(bytes32 reason) external {
+    function aegis_freeze(string calldata reason) external {
         _requireSentinelOrSelf();
         GuardConfig storage cfg = _config();
         cfg.frozen = true;
@@ -253,7 +253,7 @@ contract AegisGuardDelegator {
         _requireRecovery();
         GuardConfig storage cfg = _config();
         cfg.frozen = false;
-        cfg.freezeReason = bytes32(0);
+        cfg.freezeReason = "";
         emit Unfrozen(address(this), msg.sender);
     }
 
@@ -334,13 +334,11 @@ contract AegisGuardDelegator {
             }
         }
 
-        GuardConfig memory snap = GuardConfig({
-            frozen: cfg.frozen,
-            recovery: cfg.recovery,
-            sentinel: cfg.sentinel,
-            freezeReason: cfg.freezeReason,
-            configNonce: cfg.configNonce
-        });
+        bool frozenBefore = cfg.frozen;
+        address recoveryBefore = cfg.recovery;
+        address sentinelBefore = cfg.sentinel;
+        uint256 nonceBefore = cfg.configNonce;
+        bytes32 freezeReasonHashBefore = keccak256(bytes(cfg.freezeReason));
         address implBefore = impl;
 
         _chargeFee();
@@ -354,14 +352,14 @@ contract AegisGuardDelegator {
 
         if (
             _getImplementation() != implBefore ||
-            cfg.frozen != snap.frozen ||
-            cfg.recovery != snap.recovery ||
-            cfg.sentinel != snap.sentinel ||
-            cfg.freezeReason != snap.freezeReason ||
-            cfg.configNonce != snap.configNonce
+            cfg.frozen != frozenBefore ||
+            cfg.recovery != recoveryBefore ||
+            cfg.sentinel != sentinelBefore ||
+            cfg.configNonce != nonceBefore ||
+            keccak256(bytes(cfg.freezeReason)) != freezeReasonHashBefore
         ) {
             cfg.frozen = true;
-            cfg.freezeReason = keccak256("Aegis:mutation-detected");
+            cfg.freezeReason = "Aegis:mutation-detected";
             emit FrozenSet(address(this), cfg.freezeReason, msg.sender);
         }
     }

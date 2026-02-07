@@ -8,7 +8,7 @@ from ai.call_llm import build_llm_caller, fetch_x_search_context
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-SAMPLES_DIR = BASE_DIR / "contracts" / "samples"
+SAMPLES_DIR = BASE_DIR / "ai" / "samples" / "reference"
 DEFAULT_X_SEARCH_KEYWORDS = [
     "EIP-7702 vulnerability",
     "account abstraction exploit",

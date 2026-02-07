@@ -15,5 +15,7 @@ Registry verdicts in this repo are assigned with a single shared criterion:
 - `ModuleE7702.md`
 - `ModuleF7702.md`
 - `ModuleG7702.md`
+
+Additional detector-stress samples live in `ai/samples/test_samples/`:
 - `ModuleH7702.md`
 - `ModuleI7702.md`

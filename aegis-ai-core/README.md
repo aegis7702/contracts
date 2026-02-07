@@ -1,8 +1,15 @@
 ## base script 
-python -m ai.scan_7702 --path "contracts/contracts/samples/ModuleA7702.sol" --rag-top-k 5                             
+python3 -m pip install --user openai
+
+# from repo root
+set -a && source ai/.env && set +a
+python3 -m ai.scan_7702 --path "ai/samples/reference/ModuleA7702.sol" --rag-top-k 5                             
+
+## test_samples (example)
+python3 -m ai.scan_7702 --path "ai/samples/test_samples/ModuleH7702.sol"
 
 ## using grok search 
-python -m ai.scan_7702 --path "contracts/contracts/samples/ModuleA7702.sol" --rag-top-k 5 --x-search --x-search-days 5 --x-search-limit 3
+python3 -m ai.scan_7702 --path "ai/samples/reference/ModuleA7702.sol" --rag-top-k 5 --x-search --x-search-days 5 --x-search-limit 3
 
 
 ## output format

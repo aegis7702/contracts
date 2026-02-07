@@ -1,14 +1,16 @@
 {
-  "name": "7702-aegis-poc",
+  "name": "aegis-contract",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "PoC: EIP-7702 Aegis Guard + Impl Safety Registry + sample 7702 impls (Hardhat + ethers)",
+  "description": "EIP-7702 Aegis Guard contracts (Hardhat + ethers)",
   "license": "MIT",
   "scripts": {
     "node": "hardhat node",
     "test": "hardhat test",
     "deploy:localhost": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploySepoliaAll.js --network sepolia",
+    "delegate:sepolia": "hardhat run scripts/delegate7702Sepolia.js --network sepolia",
     "deploy:nofee:localhost": "hardhat run scripts/deployNoFee.js --network localhost",
     "demo:nofee:localhost": "hardhat run scripts/demo7702NoFee.js --network localhost",
     "lint": "echo \"(optional) add eslint\""

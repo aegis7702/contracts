@@ -16,7 +16,7 @@ describe("7702 Aegis PoC", function () {
 
     // Deploy registry
     const Registry = await ethers.getContractFactory("ImplSafetyRegistry");
-    const registry = await Registry.deploy();
+    const registry = await Registry.deploy(5);
     await registry.waitForDeployment();
 
     // Deploy fee token
@@ -49,10 +49,28 @@ describe("7702 Aegis PoC", function () {
 
     // seed registry
     const Verdict = { Safe: 1, Unsafe: 2 };
-    await (await registry.setVerdictCurrent(await moduleA.getAddress(), Verdict.Safe)).wait();
-    await (await registry.setVerdictCurrent(await moduleE.getAddress(), Verdict.Safe)).wait();
-    await (await registry.setVerdictCurrent(await moduleF.getAddress(), Verdict.Safe)).wait();
-    await (await registry.setVerdictCurrent(await moduleC.getAddress(), Verdict.Unsafe)).wait();
+    await (await registry.setVerdictCurrent(await moduleA.getAddress(), Verdict.Safe, "seed:ModuleA7702:Safe")).wait();
+    await (await registry.setVerdictCurrent(await moduleC.getAddress(), Verdict.Unsafe, "seed:ModuleC7702:Unsafe")).wait();
+    await (await registry.setVerdictCurrent(await moduleE.getAddress(), Verdict.Unsafe, "seed:ModuleE7702:Unsafe")).wait();
+    await (await registry.setVerdictCurrent(await moduleF.getAddress(), Verdict.Unsafe, "seed:ModuleF7702:Unsafe")).wait();
+
+    // sanity: reason storage + "recent N" ring buffer order (newest-first)
+    const moduleAAddr = await moduleA.getAddress();
+    const moduleCAddr = await moduleC.getAddress();
+    const moduleEAddr = await moduleE.getAddress();
+    const moduleFAddr = await moduleF.getAddress();
+
+    const codehashA = await registry.extcodehash(moduleAAddr);
+    assert.equal(await registry.getReason(moduleAAddr, codehashA), "seed:ModuleA7702:Safe");
+
+    const [impls] = await registry.getRecentPairs();
+    assert.deepEqual(
+      impls.map((x) => x.toLowerCase()),
+      [moduleFAddr, moduleEAddr, moduleCAddr, moduleAAddr].map((x) => x.toLowerCase()),
+      "getRecentPairs should be newest-first"
+    );
+    const [mostRecent] = await registry.getRecentPairAt(0);
+    assert.equal(mostRecent.toLowerCase(), moduleFAddr.toLowerCase(), "getRecentPairAt(0) should be newest");
 
     // --- Install 7702 delegation code to the wallet address
     const guardAddr = await guard.getAddress();
@@ -124,16 +142,16 @@ describe("7702 Aegis PoC", function () {
     assert.equal((afterForce - beforeForce).toString(), "0", "fee should roll back on forced execution revert");
 
     // Collision DoS demo
-    await (await walletAsGuard.aegis_setImplementation(await moduleE.getAddress())).wait();
-    const walletAsE = new ethers.Contract(wallet.address, moduleE.interface, wallet);
-    await (await walletAsE.bootstrap()).wait();
+    await (await walletAsGuard.aegis_forceSetImplementation(await moduleE.getAddress())).wait();
+    const payloadEBootstrap = moduleE.interface.encodeFunctionData("bootstrap", []);
+    await (await walletAsGuard.aegis_forceExecute(payloadEBootstrap)).wait();
 
-    await (await walletAsGuard.aegis_setImplementation(await moduleF.getAddress())).wait();
-    const walletAsF = new ethers.Contract(wallet.address, moduleF.interface, wallet);
+    await (await walletAsGuard.aegis_forceSetImplementation(await moduleF.getAddress())).wait();
     const beforeFallbackFail = await token.balanceOf(feeRecipient.address);
+    const payloadFDispatch = moduleF.interface.encodeFunctionData("dispatch", [[]]);
 
     try {
-      await (await walletAsF.dispatch([])).wait();
+      await (await walletAsGuard.aegis_forceExecute(payloadFDispatch)).wait();
       assert.fail("expected paused revert");
     } catch (e) {
       // ok: collision bricked the wallet
