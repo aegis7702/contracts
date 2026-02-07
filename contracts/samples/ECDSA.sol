@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 library ECDSA {
@@ -17,6 +18,7 @@ library ECDSA {
         bytes32 r;
         bytes32 s;
         uint8 v;
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             r := mload(add(signature, 0x20))
             s := mload(add(signature, 0x40))
