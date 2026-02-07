@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ECDSA} from "../lib/ECDSA.sol";
+import {ECDSA} from "./ECDSA.sol";
 
 contract ModuleA7702 {
     using ECDSA for bytes32;
