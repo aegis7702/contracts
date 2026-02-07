@@ -1,0 +1,23 @@
+{
+  "name": "7702-aegis-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PoC: EIP-7702 Aegis Guard + Impl Safety Registry + sample 7702 impls (Hardhat + ethers)",
+  "license": "MIT",
+  "scripts": {
+    "node": "hardhat node",
+    "test": "hardhat test",
+    "deploy:localhost": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:nofee:localhost": "hardhat run scripts/deployNoFee.js --network localhost",
+    "demo:nofee:localhost": "hardhat run scripts/demo7702NoFee.js --network localhost",
+    "lint": "echo \"(optional) add eslint\""
+  },
+  "devDependencies": {
+    "hardhat": "^3.0.0",
+    "@nomicfoundation/hardhat-mocha": "^3.0.9",
+    "@nomicfoundation/hardhat-ethers": "^4.0.0",
+    "ethers": "^6.14.3",
+    "mocha": "^11.7.4"
+  }
+}
