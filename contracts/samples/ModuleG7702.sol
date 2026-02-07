@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 contract ModuleG7702 {
@@ -45,13 +44,11 @@ contract ModuleG7702 {
     }
 
     function operator() external view returns (address) {
-        // Prevent unauthorized "fee griefing" calls via the guard forwarding path.
         if (msg.sender != address(this)) revert UnauthorizedCaller();
         return _state().operator;
     }
 
     function flag() external view returns (bool) {
-        // Prevent unauthorized "fee griefing" calls via the guard forwarding path.
         if (msg.sender != address(this)) revert UnauthorizedCaller();
         return _state().flag;
     }

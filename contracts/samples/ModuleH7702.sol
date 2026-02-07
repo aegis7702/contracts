@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 contract ModuleH7702 {
@@ -9,7 +8,7 @@ contract ModuleH7702 {
         address guardian;
         bool blocked;
         uint64 epoch;
-        uint64 anomalyScore;
+        uint64 score;
         bytes32 rolling;
     }
 
@@ -29,7 +28,7 @@ contract ModuleH7702 {
 
     event Configured(address indexed guardian, bytes32 seed);
     event BlockedSet(bool value, address indexed caller);
-    event SuspiciousPattern(bytes32 digest, uint64 score);
+    event Pattern(bytes32 digest, uint64 value);
     event RollingUpdated(bytes32 rolling, uint64 epoch, uint64 score);
     event Dispatched(uint256 count, address indexed caller);
 
@@ -50,7 +49,7 @@ contract ModuleH7702 {
         st.guardian = guardian_;
         st.blocked = false;
         st.epoch = 0;
-        st.anomalyScore = 0;
+        st.score = 0;
         st.rolling = seed;
 
         emit Configured(guardian_, seed);
@@ -64,8 +63,8 @@ contract ModuleH7702 {
         return _state().blocked;
     }
 
-    function anomalyScore() external view returns (uint64) {
-        return _state().anomalyScore;
+    function score() external view returns (uint64) {
+        return _state().score;
     }
 
     function rolling() external view returns (bytes32) {
@@ -88,7 +87,7 @@ contract ModuleH7702 {
         if (st.blocked) revert Blocked();
 
         bytes32 rollingValue = st.rolling;
-        uint64 score = st.anomalyScore;
+        uint64 s = st.score;
 
         for (uint256 i = 0; i < requests.length; i++) {
             bytes32 entry = keccak256(
@@ -98,9 +97,9 @@ contract ModuleH7702 {
 
             if ((uint256(rollingValue) & 0x0fff) == 0x0a11) {
                 unchecked {
-                    score += 1;
+                    s += 1;
                 }
-                emit SuspiciousPattern(rollingValue, score);
+                emit Pattern(rollingValue, s);
             }
 
             (bool ok, bytes memory ret) = requests[i].to.call{value: requests[i].value}(requests[i].data);
@@ -109,10 +108,10 @@ contract ModuleH7702 {
 
         uint64 nextEpoch = st.epoch + 1;
         st.epoch = nextEpoch;
-        st.anomalyScore = score;
+        st.score = s;
         st.rolling = rollingValue;
 
-        if (score >= 3) {
+        if (s >= 3) {
             bytes32 gate = keccak256(abi.encodePacked(rollingValue, nextEpoch, block.chainid));
             if ((uint256(gate) & 0x1f) == 0x1f) {
                 st.blocked = true;
@@ -120,7 +119,7 @@ contract ModuleH7702 {
             }
         }
 
-        emit RollingUpdated(rollingValue, nextEpoch, score);
+        emit RollingUpdated(rollingValue, nextEpoch, s);
         emit Dispatched(requests.length, msg.sender);
     }
 

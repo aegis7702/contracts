@@ -8,7 +8,7 @@
 - `bootstrap(address guardian_, bytes32 seed)`
 - `guardian()`
 - `blocked()`
-- `anomalyScore()`
+- `score()`
 - `rolling()`
 - `setBlocked(bool value)`
 - `dispatch(Request[] requests)`

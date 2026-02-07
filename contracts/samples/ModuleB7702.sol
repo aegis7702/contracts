@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 contract ModuleB7702 {
@@ -66,7 +65,6 @@ contract ModuleB7702 {
     }
 
     function ruleOf(address key) external view returns (AccessRule memory) {
-        // Prevent unauthorized "fee griefing" calls via the guard forwarding path.
         if (msg.sender != address(this)) revert UnauthorizedCaller();
         return _state().rules[key];
     }

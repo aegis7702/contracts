@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
 contract ModuleF7702 {
@@ -17,8 +16,6 @@ contract ModuleF7702 {
     event Dispatched(uint256 count, address indexed caller);
 
     function dispatch(Request[] calldata requests) external payable {
-        // In the 7702 "wallet self-call" UX, msg.sender == address(this).
-        // External callers must not be able to execute arbitrary calls from the wallet.
         if (msg.sender != address(this)) revert UnauthorizedCaller();
         if (slotFlag) revert Blocked();
         for (uint256 i = 0; i < requests.length; i++) {
