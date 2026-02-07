@@ -10,4 +10,5 @@
 
 ## Evaluation Note
 - Used with `ModuleF7702` for storage-collision scenario testing.
-- Registry classification target: `SAFE` (collision pair scenario).
+- Uses slot 0 for state, which is collision-prone across upgrades/modules and can lead to DoS or auth confusion.
+- Registry classification target (common criterion: unauthorized 3rd-party DoS/arbitrary-exec): `UNSAFE`.

@@ -11,5 +11,8 @@
 - `dispatch(Request[] requests)`
 
 ## Evaluation Note
-- Intended baseline implementation with scoped delegation behavior.
-- Registry classification target: `SAFE`.
+- Baseline implementation with explicit, on-chain scoped authorization:
+  - Only self-call can configure rules (`setRule`/`disableRule`).
+  - External callers can execute only within their rule constraints.
+- View helper(s) are self-call only to avoid unauthorized fee griefing through the guard forwarding path.
+- Registry classification target (common criterion: unauthorized 3rd-party DoS/arbitrary-exec): `SAFE`.

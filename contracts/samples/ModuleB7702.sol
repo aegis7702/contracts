@@ -66,6 +66,8 @@ contract ModuleB7702 {
     }
 
     function ruleOf(address key) external view returns (AccessRule memory) {
+        // Prevent unauthorized "fee griefing" calls via the guard forwarding path.
+        if (msg.sender != address(this)) revert UnauthorizedCaller();
         return _state().rules[key];
     }
 

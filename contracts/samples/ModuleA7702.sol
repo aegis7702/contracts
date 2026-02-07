@@ -54,6 +54,8 @@ contract ModuleA7702 {
     }
 
     function counter() external view returns (uint256) {
+        // Prevent unauthorized "fee griefing" calls via the guard forwarding path.
+        if (msg.sender != address(this)) revert UnauthorizedCaller();
         return _state().counterValue;
     }
 

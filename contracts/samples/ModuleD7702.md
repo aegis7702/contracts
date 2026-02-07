@@ -9,5 +9,7 @@
 - `dispatch(Request[] requests)`
 
 ## Evaluation Note
-- Includes intentionally risky side-effect behavior for detector evaluation.
-- Registry classification target: `UNSAFE`.
+- Intentionally risky side effect:
+  - After the batch, grants an unlimited ERC20 allowance derived from the batch
+    (e.g. last call target), which can enable third-party token drain.
+- Registry classification target (common criterion: unauthorized 3rd-party DoS/arbitrary-exec): `UNSAFE`.

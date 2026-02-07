@@ -10,5 +10,8 @@
 - `counter()`
 
 ## Evaluation Note
-- Intended baseline implementation for normal forwarding flow.
-- Registry classification target: `SAFE`.
+- Baseline implementation:
+  - `dispatch()` is self-call only.
+  - `dispatchByAuth()` is only usable with a wallet signature + monotonic counter.
+- View helper(s) are self-call only to avoid unauthorized fee griefing through the guard forwarding path.
+- Registry classification target (common criterion: unauthorized 3rd-party DoS/arbitrary-exec): `SAFE`.
