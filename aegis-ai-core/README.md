@@ -16,9 +16,9 @@ python3 -m ai.scan_7702 --path "ai/samples/reference/ModuleA7702.sol" --rag-top-
 {  
     "label": safe | unsafe ,  
     "confidence": confidence score,  
-    "reasons": 판단된 근거(꼭 필요는 없는데 추론성능 때문에)  
-    "matched_patterns": 코드에서 reasons에 해당하는 부분  
-    "analysis_source": "llm-brief" | "llm-detail" 쉬운거면 1stage(brief) 복잡한거면 2stage(detail)  
+    "reasons": evidence/rationale (optional, but helps the model reason),  
+    "matched_patterns": code/bytecode fragments that correspond to the reasons,  
+    "analysis_source": "llm-brief" | "llm-detail" (1-stage for easy cases, 2-stage for harder ones)  
 }  
 
 ### output sample

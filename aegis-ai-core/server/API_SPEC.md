@@ -37,7 +37,7 @@ Response:
 
 ### `POST /v1/tx/precheck`
 
-7702 지갑이 트랜잭션을 보내기 전에 호출하는 "사전 차단" 분석 API.
+Precheck API called by a 7702 wallet before broadcasting a transaction.
 
 Request:
 
@@ -77,8 +77,8 @@ Response:
 
 ### `POST /v1/impl/scan`
 
-impl 주소를 받아 `eth_getCode`(runtime bytecode) 기반으로 분석하고,
-결과를 `ImplSafetyRegistry.setRecordCurrent(...)`로 온체인 기록.
+Analyze an implementation address using `eth_getCode` (runtime bytecode) and write the result on-chain via
+`ImplSafetyRegistry.setRecordCurrent(...)`.
 
 Request:
 
@@ -103,11 +103,12 @@ Response:
 
 ### `POST /v1/impl/audit-apply`
 
-impl 신규 등록/교체 시 감사.
+Audit an impl during initial registration or a swap.
 
-- `mode=init`: 새 impl을 감사하고, 허용되면 지갑 self-call용 `aegis_init(...)` tx template 반환
-- `mode=swap`: 새 impl 감사는 항상 기록하며, 추가로 "swap 호환성" 감사도 별도 온체인 기록.
-  - swap mode에서는 (newImpl 단독 기록 1회) + (swap 호환성 기록 1회)로 **최대 2번 기록**이 발생할 수 있음.
+- `mode=init`: audit the new impl and, if allowed, return a wallet self-call tx template for `aegis_init(...)`
+- `mode=swap`: always record the standalone new-impl audit, and additionally record a separate "swap compatibility"
+  audit on-chain.
+  - In swap mode, up to **two on-chain writes** can happen: (newImpl standalone) + (swap compatibility).
 
 Request:
 
@@ -141,18 +142,19 @@ Response:
 ```
 
 Notes:
-- 백엔드는 지갑의 private key를 보유하지 않기 때문에, 실제 `aegis_init/aegis_setImplementation` 실행은 클라이언트가 `txTemplate`로 직접 전송해야 합니다.
+- The backend does not hold the wallet private key, so the client must send the actual
+  `aegis_init/aegis_setImplementation` transaction using `txTemplate`.
 
 ### `POST /v1/wallet/watch`
 
-사후감사(worker) 모니터링 지갑 등록.
+Register a wallet for worker-based post-audit monitoring.
 
 Notes:
-- worker는 기본적으로 모든 새 tx에 대해 TxNote를 온체인에 기록합니다.
-- worker freeze 정책:
-  - worker는 **LLM postaudit 결과(label)** 로만 freeze 여부를 결정합니다.
-  - postaudit 프롬프트에서 `receipt.status == 0x0`(revert/failure) 인 경우 label="SAFE" 를 강제하도록 설계되어 있어,
-    정상적으로는 revert tx로 인해 freeze 되지 않습니다. (TxNote는 기록)
+- The worker writes a TxNote on-chain for every new transaction from watched wallets.
+- Worker freeze policy:
+  - The worker decides whether to freeze based only on the **LLM postaudit label**.
+  - The postaudit prompt is designed to force label="SAFE" when `receipt.status == 0x0` (revert/failure),
+    so in normal operation a reverted tx should not trigger a freeze. (TxNote is still written.)
 
 Request:
 
@@ -196,7 +198,7 @@ Response:
 
 ### `GET /v1/wallet/{wallet}/tx/{txHash}?chainId=...`
 
-온체인에 기록된 TxNote 조회.
+Fetch the on-chain TxNote.
 
 Response:
 

@@ -74,17 +74,17 @@ class OpenAIProvider(BaseLLMProvider):
         **kwargs: Any,
     ) -> str:
         """
-        - responses-only 모델(gpt-5-*, o1-*, 등)을 지원하기 위해 v1/responses를 우선 사용
-        - 일부 구형/특수 모델에서 responses가 안 되면 chat.completions로 fallback
+        - Prefer v1/responses to support responses-only models (gpt-5-*, o1-*, etc.)
+        - If the responses API is unavailable for a given model/SDK, fall back to chat.completions
         """
 
-        # 1) messages -> responses input 변환
-        # responses API는 "input"에 role/content 구조를 그대로 넣을 수 있습니다.
-        # (SDK 버전에 따라 shape가 조금 다를 수 있어, 가장 범용적인 형태로 작성)
+        # 1) Convert messages -> responses input payload.
+        # The responses API can accept the same role/content structure under `input`.
+        # (SDK shapes vary slightly; keep this as generic as possible.)
         input_payload = [{"role": m["role"], "content": m["content"]} for m in messages]
 
-        # kwargs 매핑 (responses에서 자주 쓰는 것만 안전하게 통과)
-        # NOTE: max_tokens vs max_output_tokens 등 모델/SDK에 따라 다를 수 있어 둘 다 지원
+        # Map kwargs (only pass through commonly supported fields for the responses API).
+        # NOTE: token limit field names vary by model/SDK (`max_tokens` vs `max_output_tokens`), so support both.
         resp_kwargs = dict(kwargs)
         if "max_tokens" in resp_kwargs and "max_output_tokens" not in resp_kwargs:
             resp_kwargs["max_output_tokens"] = int(resp_kwargs.pop("max_tokens"))
@@ -146,14 +146,14 @@ class OpenAIProvider(BaseLLMProvider):
                 input=input_payload,
                 **resp_create_kwargs,
             )
-            # 최신 SDK는 output_text를 제공
+            # Newer SDKs provide `output_text`.
             if hasattr(resp, "output_text") and resp.output_text:
                 return resp.output_text
-            # fallback: output 구조에서 텍스트 합치기
+            # Fallback: stitch together text from the `output` structure.
             if hasattr(resp, "output") and resp.output:
                 texts = []
                 for item in resp.output:
-                    # item.content: [{"type":"output_text","text":"..."}] 같은 형태가 흔함
+                    # `item.content` often looks like: [{"type":"output_text","text":"..."}].
                     for c in getattr(item, "content", []) or []:
                         t = getattr(c, "text", None)
                         if t:
@@ -163,8 +163,8 @@ class OpenAIProvider(BaseLLMProvider):
             return str(resp)
 
         except Exception as e:
-            # 2) responses 실패 시 chat.completions fallback (chat 전용 모델 호환)
-            # (단, 현재 에러는 "chat 불가"였으므로 보통은 여기로 오지 않게 해야 함)
+            # 2) If responses fails, fall back to chat.completions (for chat-only models).
+            # (If the root error was "chat not supported", we should not usually land here.)
             try:
                 chat_kwargs = dict(kwargs)
                 chat_kwargs.pop("reasoning", None)
@@ -189,7 +189,7 @@ class OpenAIProvider(BaseLLMProvider):
 
 class GrokProvider(BaseLLMProvider):
     """
-    xAI 공식 튜토리얼의 xai-sdk 방식:
+    Based on the official xAI xai-sdk tutorial:
       - pip install xai-sdk
       - from xai_sdk import Client
       - from xai_sdk.chat import user, system
@@ -223,14 +223,14 @@ class GrokProvider(BaseLLMProvider):
     def chat(self, messages: List[Dict[str, str]], model: Optional[str] = None, **kwargs) -> str:
         model_name = model or "grok-4"
 
-        # xai-sdk는 "채팅 세션" 생성 후 append하는 형태
+        # xai-sdk creates a chat session, then you append messages.
         chat = self.client.chat.create(
             model=model_name,
             store_messages=bool(kwargs.pop("store_messages", self.store_messages)),
         )
 
-        # system은 여러 개면 합치거나, 첫 system만 쓰는게 안전
-        # 여기선 "system들은 순서대로 append" (튜토리얼 패턴 유지)
+        # If there are multiple system messages, it is safest to merge them or use only the first.
+        # Here we append system messages in order (keep the tutorial pattern).
         for m in messages:
             role = (m.get("role") or "user").strip()
             content = m.get("content") or ""
@@ -239,17 +239,17 @@ class GrokProvider(BaseLLMProvider):
             elif role == "user":
                 chat.append(self._x_user(content))
             elif role == "assistant":
-                # xai-sdk는 response 객체를 append하는 예시가 있으나,
-                # 여기서는 간단히 'user'로 흡수(대부분의 데이터 생성엔 충분)
-                # 필요하면 xai_sdk.chat.assistant 가 있는지 확인 후 분기하세요.
+                # The xai-sdk examples sometimes append assistant/response objects, but
+                # here we simply treat it as user content (good enough for most PoC data-generation).
+                # If needed, detect whether xai_sdk.chat.assistant exists and branch accordingly.
                 chat.append(self._x_user(content))
             else:
                 chat.append(self._x_user(content))
 
-        # 샘플링 옵션: 튜토리얼은 sample()만 사용
-        # (temperature 등은 SDK 옵션 지원 여부가 모델/SDK 버전에 따라 다를 수 있어 kwargs는 보수적으로 무시)
+        # Sampling: the tutorial uses sample() only.
+        # (Options like temperature may vary by model/SDK; we conservatively ignore unsupported kwargs.)
         resp = chat.sample()
-        # 튜토리얼 기준 response.content 출력  [oai_citation:4‡xAI](https://docs.x.ai/docs/tutorial)
+        # Tutorial output: resp.content  [oai_citation:4‡xAI](https://docs.x.ai/docs/tutorial)
         return getattr(resp, "content", str(resp))
 
 

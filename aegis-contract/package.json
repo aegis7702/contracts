@@ -8,12 +8,14 @@
   "scripts": {
     "node": "hardhat node",
     "test": "hardhat test",
+    "compile": "hardhat compile",
     "deploy:localhost": "hardhat run scripts/deploy.js --network localhost",
     "deploy:local:all": "hardhat run scripts/deployLocalAll.js --network localhost",
     "deploy:sepolia": "hardhat run scripts/deploySepoliaAll.js --network sepolia",
     "delegate:sepolia": "hardhat run scripts/delegate7702Sepolia.js --network sepolia",
     "deploy:nofee:localhost": "hardhat run scripts/deployNoFee.js --network localhost",
     "demo:nofee:localhost": "hardhat run scripts/demo7702NoFee.js --network localhost",
+    "dump:samples:bytecode": "hardhat compile && node scripts/dumpSampleBytecode.js",
     "lint": "echo \"(optional) add eslint\""
   },
   "devDependencies": {

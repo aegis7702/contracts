@@ -1,27 +1,27 @@
 # Aegis AI Core Server (PoC)
 
-목표: EIP-7702(로컬/포크) 지갑에 대해
+Goal: for EIP-7702 wallets (local/fork), provide:
 
-- tx **사전차단(precheck)**: 지갑이 tx 전송 전에 API에 문맥 분석 요청
-- tx **사후감사(postaudit)**: watchlist 지갑들의 새 tx를 모니터링해서 위험하면 freeze + TxNote 온체인 기록
-- impl **조회(scan)**: impl 주소를 받아 `eth_getCode`(bytecode) 기반 분석 후 `ImplSafetyRegistry`에 기록
-- impl **신규/교체 감사(audit-apply)**: impl 신규등록/교체 전 감사 + (swap mode) 호환성 리스크도 별도 기록
+- tx **precheck**: the wallet calls the API before sending a tx for context-based analysis
+- tx **postaudit**: monitor new txs for watched wallets; if risky, freeze + write TxNote on-chain
+- impl **scan**: analyze an impl address via `eth_getCode` (bytecode) and write the result to `ImplSafetyRegistry`
+- impl **audit-apply**: audit before registering/applying a new impl; in swap mode also record a separate compatibility/migration-risk note
 
-이 PoC는 **DB 없이** `watchlist.json`/`cursor.json` 파일로 상태를 관리합니다.
+This PoC keeps state without a DB using `watchlist.json`/`cursor.json`.
 
 ## Policy (LLM-only blocking, minimize false positives)
 
-- 백엔드에서 tx/impl을 **룰(하드코딩)로 차단하지 않습니다**. 차단/허용은 LLM 결과(label)에만 의존합니다.
-- 오탐(정상 동작 차단/불필요 freeze)이 치명적이므로, 모든 프롬프트는 **명확한 하이시그널이 있을 때만 UNSAFE** 를 반환하도록 설계했습니다.
-- 장애/파싱 실패 시:
-  - precheck: deterministic block 없이 SAFE(낮은 confidence)로 반환
-  - postaudit(worker): deterministic freeze 없이 TxNote만 기록
+- The backend does not block txs/impls via hard-coded rules. Allow/deny/freeze decisions rely only on the LLM label.
+- Because false positives (blocking normal usage / unnecessary freezes) are extremely disruptive, prompts are written to return UNSAFE only for clear high-signal cases.
+- On outages / parsing failures:
+  - precheck: return SAFE (low confidence) with a warning (no deterministic block)
+  - postaudit (worker): write TxNote only (no deterministic freeze)
 
 ## Prereqs
 
-- `aegis-contract/`에서 Hardhat node 실행 + 배포(로컬 또는 Sepolia)
-- 환경변수:
-  - `aegis-contract/.env.testnet`: `PUBLISHER_PK`, `SENTINEL_PK`, `PUBLISHER_ADDRESS`, `SENTINEL_ADDRESS` 등
+- Run a Hardhat node and deploy from `aegis-contract/` (local or Sepolia)
+- Environment variables:
+  - `aegis-contract/.env.testnet`: `PUBLISHER_PK`, `SENTINEL_PK`, `PUBLISHER_ADDRESS`, `SENTINEL_ADDRESS`, etc.
   - `aegis-ai-core/ai/.env`: `OPENAI_API_KEY`
 
 ## Install (Python)
@@ -37,12 +37,12 @@ pip install -r server/requirements.txt
 
 ### RPC URL mapping
 
-- `RPC_URL_{chainId}`: chainId별 직접 지정 (권장)
-- fallback:
-  - `chainId=31337`: `LOCAL_RPC_URL` 또는 `http://127.0.0.1:8545`
-  - `chainId=11155111`: `SEPOLIA_RPC_URL` 또는 public RPC
+- `RPC_URL_{chainId}`: set per-chain RPC URL (recommended)
+- Fallbacks:
+  - `chainId=31337`: `LOCAL_RPC_URL` or `http://127.0.0.1:8545`
+  - `chainId=11155111`: `SEPOLIA_RPC_URL` or a public RPC
 
-예:
+Example:
 
 ```bash
 export RPC_URL_31337=http://127.0.0.1:8545
@@ -51,16 +51,16 @@ export RPC_URL_11155111=https://ethereum-sepolia-rpc.publicnode.com
 
 ### CORS (Browser)
 
-브라우저(프론트엔드)에서 직접 호출하면 CORS preflight(OPTIONS)가 발생합니다.
+If your frontend calls the API directly from a browser, CORS preflight (OPTIONS) will happen.
 
-- 기본값: `Access-Control-Allow-Origin: *` (credentials 없이 허용)
-- 특정 origin만 허용하려면:
+- Default: `Access-Control-Allow-Origin: *` (allowed without credentials)
+- To allow specific origins only:
 
 ```bash
 export CORS_ALLOW_ORIGINS=http://localhost:3000,https://your-frontend.example
 ```
 
-쿠키/인증정보를 포함해야 한다면(`credentials: "include"` 같은 케이스):
+If you need cookies/credentials (e.g. `credentials: "include"`):
 
 ```bash
 export CORS_ALLOW_ORIGINS=https://your-frontend.example
@@ -71,7 +71,7 @@ export CORS_ALLOW_CREDENTIALS=true
 
 - `AEGIS_LLM_PROVIDER`: `openai` (default) | `grok`
 - `AEGIS_LLM_MODEL`: (default `gpt-4o-mini`)
-- `AEGIS_LLM_REASONING`: `none` | `low` | `medium` | `high` (모델이 지원할 때만)
+- `AEGIS_LLM_REASONING`: `none` | `low` | `medium` | `high` (only if supported by the model)
 
 ## Run (Local)
 
@@ -82,7 +82,7 @@ cd aegis-contract
 npm run node
 ```
 
-2) Local deploy + deployments json 생성:
+2) Local deploy + generate deployments json:
 
 ```bash
 cd aegis-contract
@@ -104,7 +104,7 @@ API spec: `server/API_SPEC.md`
 
 ## E2E (Local, automated)
 
-Hardhat node + deploy + API server + 실제 tx를 모두 자동으로 돌려봅니다.
+This runs Hardhat node + deploy + API server + real transactions end-to-end.
 
 ```bash
 cd aegis-ai-core
@@ -112,12 +112,12 @@ cd aegis-ai-core
 python -m server.e2e_local
 ```
 
-옵션:
-- 실제 OpenAI 호출로 테스트: `E2E_LLM_PROVIDER=openai python -m server.e2e_local`
+Options:
+- Force OpenAI provider explicitly: `E2E_LLM_PROVIDER=openai python -m server.e2e_local`
 
 ## Mutable state files
 
-생성 위치: `aegis-ai-core/server_state/`
+Location: `aegis-ai-core/server_state/`
 
-- `watchlist.json`: chainId별 모니터링 지갑 목록
-- `cursor.json`: chainId별 worker 마지막 처리 block
+- `watchlist.json`: per-chain list of watched wallets
+- `cursor.json`: per-chain last processed block for the worker
