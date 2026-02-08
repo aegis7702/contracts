@@ -6,6 +6,7 @@ Goal: for EIP-7702 wallets (local/fork), provide:
 - tx **postaudit**: monitor new txs for watched wallets; if risky, freeze + write TxNote on-chain
 - impl **scan**: analyze an impl address via `eth_getCode` (bytecode) and write the result to `ImplSafetyRegistry`
 - impl **audit-apply**: audit before registering/applying a new impl; in swap mode also record a separate compatibility/migration-risk note
+- `chat`: a minimal LLM wrapper endpoint for general text in/out
 
 This PoC keeps state without a DB using `watchlist.json`/`cursor.json`.
 

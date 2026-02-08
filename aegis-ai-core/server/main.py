@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
+from ai.call_llm import build_llm_caller
 from ai.scan_impl_bytecode import audit_impl_bytecode, audit_swap_bytecode
 from ai.scan_tx_precheck import audit_tx_precheck
 from server.config import (
@@ -21,6 +22,8 @@ from server.config import (
 from server.contracts import ImplSafetyRegistryClient, TxNote, WalletGuardClient
 from server.models import (
     AuditApplyResponse,
+    ChatRequest,
+    ChatResponse,
     ImplAuditApplyRequest,
     ImplScanRequest,
     ImplScanResponse,
@@ -125,6 +128,39 @@ def _startup() -> None:
 @app.get("/v1/health")
 def health() -> Dict[str, Any]:
     return {"ok": True}
+
+
+@app.post("/v1/chat", response_model=ChatResponse)
+def chat(req: ChatRequest) -> ChatResponse:
+    """
+    Minimal ChatGPT-style wrapper: send input text to the configured LLM and return the raw output text.
+    """
+
+    provider = os.getenv("AEGIS_LLM_PROVIDER", "openai")
+    model = req.model or os.getenv("AEGIS_LLM_MODEL", "gpt-4.1-2025-04-14")
+    system_prompt = req.system or os.getenv("AEGIS_CHAT_SYSTEM_PROMPT", "You are a helpful assistant.")
+
+    caller = build_llm_caller(provider)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": req.text},
+    ]
+    kwargs: Dict[str, Any] = {"model": model}
+    if req.maxTokens is not None:
+        kwargs["max_tokens"] = int(req.maxTokens)
+    else:
+        # PoC default: cap output to avoid runaway costs.
+        kwargs["max_tokens"] = 800
+    if req.temperature is not None:
+        kwargs["temperature"] = float(req.temperature)
+
+    try:
+        out_text = caller.chat(messages, **kwargs)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM chat failed: {e!r}")
+
+    return ChatResponse(text=str(out_text))
 
 
 @app.post("/v1/impl/scan", response_model=ImplScanResponse)

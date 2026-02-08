@@ -142,7 +142,7 @@ Sample classification (A~I):
 
 ---
 
-## Sepolia Deployment Addresses (2026-02-07)
+## Sepolia Deployment Addresses (2026-02-08)
 
 > Note: this PoC changes ABI frequently (e.g., the recent-N ring buffer, note schema changes, etc.).
 > The addresses below may not match the ABI in the current working tree. If needed, redeploy via
@@ -150,25 +150,25 @@ Sample classification (A~I):
 
 - Full deployment details (addresses/tx hashes/verdict seeding txs): `deployments/chain-11155111-latest.json`
 
-- deployedAt: `2026-02-07T15:43:22.249Z`
+- deployedAt: `2026-02-08T12:11:57.161Z`
 - deployer: `0xfFf6679e75B926DA54f53FAF9Cf2594F86BB1Aa8`
-- `ImplSafetyRegistry`: `0x01F95904ecd0848A28bDEEBB78FbFbac5aD7F2e6`
-- `AegisToken`: `0xa9F884D633aeC8f3893631E29Cf0264c11899f55`
-- `AegisFeePolicy`: `0x411D01aDe2eCDFb878239A233601bAf136Cfc61E`
-- `AegisGuardDelegator`: `0x2f7bB54E59DadC1f593FAea2c84092825Fd0533B`
-- `ModuleA7702`: `0x803Bc23698933e062210683357Ec20c394131e56`
-- `ModuleB7702`: `0xa453dbeb0f8f04b8fcA341260760cfDb78B40CcC`
-- `ModuleC7702`: `0xD506b539cb8d3a99C5308E2d8d4A49384F0207E1`
-- `ModuleD7702`: `0x8f5b5f03a92382b4c49e9e446061486A9de09A0B`
-- `ModuleE7702`: `0x416ebc59c5223F988651d3A3D3AC74E1B9ff6a9B`
-- `ModuleF7702`: `0x2a72c0E2f7eB22eb1CB7fe54764290555D122978`
-- `ModuleG7702`: `0x529C8029401EE3443a1B44d33173ff510f3EbB7d`
-- `ModuleH7702`: `0xCeE24d93AfcFa95b07Ed25bBaa679ed5DeC3743B`
-- `ModuleI7702`: `0xDe2E0c61251d901FD65dFf4e3E175fbBA04D3734`
+- `ImplSafetyRegistry`: `0x67195d63765d62615DF25355688c3faD2A5Aa0e2`
+- `AegisToken`: `0xB06B701bd03EBd4f99AC317D2f66f25C1c31bb31`
+- `AegisFeePolicy`: `0xFe6fC1b4c0E8B2510a6BEdBd8f8aa43cC02EA6A3`
+- `AegisGuardDelegator`: `0x9E44450A67EA588bB5b2072557a6A943e1f9b145`
+- `ModuleA7702`: `0x8b0444A4a89a9ddA235d39D88C799b045D3652D2`
+- `ModuleB7702`: `0xd5CD1c7771512Bc802a808b4Ccc103EbD16c0a07`
+- `ModuleC7702`: `0x01AEb0639247524f59a1c59b485C838bB1F353F8`
+- `ModuleD7702`: `0x5006818630a7F9d2832FeD5B390d93D3Ea052B87`
+- `ModuleE7702`: `0xB62c89737F87e4b5E711406b49E338eE14Fcc072`
+- `ModuleF7702`: `0xb4215Dd345E223a877DFFd0d64A5C2ab7DF2D162`
+- `ModuleG7702`: `0xBEf2c91e889C947399AAf1293bF75F95fA5681ba`
+- `ModuleH7702`: `0x1618c60Ac2031B58547e3F6fD41Ff440B52F8282`
+- `ModuleI7702`: `0xafE4F021cDe6fb2FA2C50eb52f3E34eED90E753b`
 
 Deployment detail artifacts (tx hashes, SAFE/UNSAFE seeding txs):
 - `deployments/sepolia-latest.json`
-- `deployments/sepolia-2026-02-07T15-43-22-249Z.json`
+- `deployments/sepolia-2026-02-08T12-11-57-161Z.json`
 
 Apply 7702 delegation only (nonce auto-calculated):
 

@@ -105,3 +105,22 @@ class AuditApplyResponse(BaseModel):
     allow: bool
     txTemplate: Optional[Dict[str, Any]] = None
 
+
+class ChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # User text prompt.
+    text: str
+
+    # Optional overrides (otherwise, server env defaults are used).
+    system: Optional[str] = None
+    model: Optional[str] = None
+    maxTokens: Optional[int] = None
+    temperature: Optional[float] = None
+
+
+class ChatResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Raw model output text.
+    text: str
