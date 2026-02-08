@@ -56,27 +56,6 @@ def audit_impl_bytecode(
     model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4o-mini")
     reasoning = reasoning or os.getenv("AEGIS_LLM_REASONING", "none")
 
-    if provider == "mock":
-        unsafe = {
-            x.strip().lower()
-            for x in (os.getenv("AEGIS_MOCK_UNSAFE_IMPLS") or "").split(",")
-            if x.strip()
-        }
-        label = "UNSAFE" if impl_address.lower() in unsafe else "SAFE"
-        return {
-            "label": label,
-            "confidence": 0.75 if label == "SAFE" else 0.9,
-            "name": f"Impl@{impl_address[:10]}",
-            "summary": f"Mock impl audit: {label}",
-            "description": "Mock analysis result.\nDeterministic label based on env mapping.\nFor e2e flow testing only.",
-            "reasons": [
-                "mock-mode: no bytecode reasoning performed",
-                f"implAddress={impl_address}",
-                "set AEGIS_MOCK_UNSAFE_IMPLS to control labels",
-            ][: (5 if label == "UNSAFE" else 3)],
-            "matched_patterns": [],
-        }
-
     prompt = _read_prompt(PROMPT_IMPL)
     prompt = prompt.replace("{chain_id}", str(chain_id))
     prompt = prompt.replace("{impl_address}", impl_address)
@@ -112,29 +91,6 @@ def audit_swap_bytecode(
     provider = provider or os.getenv("AEGIS_LLM_PROVIDER", "openai")
     model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4o-mini")
     reasoning = reasoning or os.getenv("AEGIS_LLM_REASONING", "none")
-
-    if provider == "mock":
-        # Format: "0xfrom->0xto,0xfrom2->0xto2"
-        pairs = {
-            x.strip().lower()
-            for x in (os.getenv("AEGIS_MOCK_UNSAFE_SWAPS") or "").split(",")
-            if x.strip()
-        }
-        key = f"{current_impl_address.lower()}->{new_impl_address.lower()}"
-        label = "UNSAFE" if key in pairs else "SAFE"
-        return {
-            "label": label,
-            "confidence": 0.7 if label == "SAFE" else 0.9,
-            "name": f"Swap@{current_impl_address[:10]}->{new_impl_address[:10]}",
-            "summary": f"Mock swap audit: {label}",
-            "description": "Mock analysis result.\nDeterministic label based on env mapping.\nFor e2e flow testing only.",
-            "reasons": [
-                "mock-mode: no bytecode compatibility analysis performed",
-                f"pair={key}",
-                "set AEGIS_MOCK_UNSAFE_SWAPS to control labels",
-            ][: (5 if label == "UNSAFE" else 3)],
-            "matched_patterns": [],
-        }
 
     prompt = _read_prompt(PROMPT_SWAP)
     prompt = prompt.replace("{chain_id}", str(chain_id))

@@ -9,6 +9,14 @@
 
 이 PoC는 **DB 없이** `watchlist.json`/`cursor.json` 파일로 상태를 관리합니다.
 
+## Policy (LLM-only blocking, minimize false positives)
+
+- 백엔드에서 tx/impl을 **룰(하드코딩)로 차단하지 않습니다**. 차단/허용은 LLM 결과(label)에만 의존합니다.
+- 오탐(정상 동작 차단/불필요 freeze)이 치명적이므로, 모든 프롬프트는 **명확한 하이시그널이 있을 때만 UNSAFE** 를 반환하도록 설계했습니다.
+- 장애/파싱 실패 시:
+  - precheck: deterministic block 없이 SAFE(낮은 confidence)로 반환
+  - postaudit(worker): deterministic freeze 없이 TxNote만 기록
+
 ## Prereqs
 
 - `aegis-contract/`에서 Hardhat node 실행 + 배포(로컬 또는 Sepolia)
@@ -41,15 +49,29 @@ export RPC_URL_31337=http://127.0.0.1:8545
 export RPC_URL_11155111=https://ethereum-sepolia-rpc.publicnode.com
 ```
 
+### CORS (Browser)
+
+브라우저(프론트엔드)에서 직접 호출하면 CORS preflight(OPTIONS)가 발생합니다.
+
+- 기본값: `Access-Control-Allow-Origin: *` (credentials 없이 허용)
+- 특정 origin만 허용하려면:
+
+```bash
+export CORS_ALLOW_ORIGINS=http://localhost:3000,https://your-frontend.example
+```
+
+쿠키/인증정보를 포함해야 한다면(`credentials: "include"` 같은 케이스):
+
+```bash
+export CORS_ALLOW_ORIGINS=https://your-frontend.example
+export CORS_ALLOW_CREDENTIALS=true
+```
+
 ### LLM config
 
-- `AEGIS_LLM_PROVIDER`: `openai` (default) | `mock`
+- `AEGIS_LLM_PROVIDER`: `openai` (default) | `grok`
 - `AEGIS_LLM_MODEL`: (default `gpt-4o-mini`)
 - `AEGIS_LLM_REASONING`: `none` | `low` | `medium` | `high` (모델이 지원할 때만)
-
-`mock` 모드는 E2E 플로우 테스트용입니다:
-- `AEGIS_MOCK_UNSAFE_IMPLS`: 쉼표로 구분된 `implAddress` 목록(UNSAFE로 강제)
-- `AEGIS_MOCK_UNSAFE_SWAPS`: 쉼표로 구분된 `from->to` 목록(UNSAFE로 강제)
 
 ## Run (Local)
 
@@ -99,4 +121,3 @@ python -m server.e2e_local
 
 - `watchlist.json`: chainId별 모니터링 지갑 목록
 - `cursor.json`: chainId별 worker 마지막 처리 block
-

@@ -180,12 +180,14 @@ def tick_chain(chain_id: int) -> None:
                     impl_record=impl_record_json,
                 )
             except Exception as e:
+                # LLM-only blocking policy: if the audit pipeline fails, do NOT freeze.
+                # Still write a TxNote for visibility/debugging.
                 audit = {
-                    "label": "UNSAFE",
+                    "label": "SAFE",
                     "confidence": 0.0,
                     "name": "PostAuditError",
-                    "summary": "Post-audit failed",
-                    "description": "LLM or parser error during postaudit.\nWallet was frozen as a precaution.\nSee reasons for details.",
+                    "summary": "Post-audit failed (no freeze).",
+                    "description": "The postaudit LLM call or JSON parsing failed.\nNo freeze was applied by policy.\nSee reasons for details.",
                     "reasons": [f"postaudit error: {e!r}"],
                     "matched_patterns": [],
                 }
@@ -200,7 +202,9 @@ def tick_chain(chain_id: int) -> None:
             )
 
             label = str(audit.get("label") or "UNSAFE").upper()
-            if label == "UNSAFE":
+            should_freeze = label == "UNSAFE"
+
+            if should_freeze:
                 freeze_reason = str(audit.get("summary") or "UNSAFE")
                 try:
                     guard.freeze_with_tx_note_and_wait(
@@ -225,7 +229,12 @@ def tick_chain(chain_id: int) -> None:
                 except Exception as e:
                     print(json.dumps({"chainId": chain_id, "wallet": wallet, "txHash": tx_hash, "error": f"set note failed: {e!r}"}))
 
-            print(json.dumps({"chainId": chain_id, "wallet": wallet, "txHash": tx_hash, "label": label}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"chainId": chain_id, "wallet": wallet, "txHash": tx_hash, "label": label, "receiptStatus": receipt.get("status")},
+                    ensure_ascii=False,
+                )
+            )
 
         if not block_complete:
             if _debug_enabled():

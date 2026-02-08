@@ -13,6 +13,27 @@ You are given Ethereum *runtime bytecode* (hex) for an implementation module tha
 - Bytecode-only analysis can be uncertain; express uncertainty via lower confidence and explicit reasons.
 </context>
 
+<decision_policy>
+- False positives are very costly (blocking good implementations makes the system unusable).
+- Default to SAFE unless you can point to a concrete, high-signal indicator of danger from the bytecode/context.
+- Do NOT label UNSAFE solely due to uncertainty ("bytecode-only", "can't decompile", "unknown intent").
+- If you are unsure, return SAFE with lower confidence and explicitly state what you could not verify.
+- Confidence calibration:
+  - If you return UNSAFE, confidence should usually be >= 0.80.
+  - If you cannot reach that level of confidence, return SAFE and explain uncertainty.
+</decision_policy>
+
+<high_signal_indicators>
+Mark UNSAFE when you have clear evidence of one of these (and cite it in reasons/matched_patterns):
+- Likely wallet/guard control-plane mutation:
+  - Presence/use of the EIP-1967 implementation slot constant:
+    0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc
+  - Presence/use of the guard config slot constant:
+    0x4b23459f0a84a2f955d2d9b2345fb64bea4d124b563876511bd09b5967836b00
+- Directly destructive primitives (if you can support it from bytecode):
+  - SELFDESTRUCT opcode (0xff).
+</high_signal_indicators>
+
 <output_schema>
 {
   "label": "SAFE" | "UNSAFE",
@@ -37,4 +58,3 @@ chainId: {chain_id}
 implAddress: {impl_address}
 bytecode: {bytecode_hex}
 </target>
-

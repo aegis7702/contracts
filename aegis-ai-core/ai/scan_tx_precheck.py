@@ -50,21 +50,6 @@ def audit_tx_precheck(
     model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4o-mini")
     reasoning = reasoning or os.getenv("AEGIS_LLM_REASONING", "none")
 
-    if provider == "mock":
-        return {
-            "label": "SAFE",
-            "confidence": 0.7,
-            "name": "Precheck@mock",
-            "summary": "Mock precheck: SAFE",
-            "description": "Mock analysis result.\nNo LLM call was made.\nFor e2e flow testing only.",
-            "reasons": [
-                "mock-mode: precheck does not block",
-                f"to={tx.get('to')}",
-                f"value={tx.get('value')}",
-            ],
-            "matched_patterns": [],
-        }
-
     system_prompt = PROMPT
     system_prompt = system_prompt.replace("{chain_id}", str(chain_id))
     system_prompt = system_prompt.replace("{tx_json}", json.dumps(tx, ensure_ascii=False, indent=2))

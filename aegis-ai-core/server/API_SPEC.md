@@ -147,6 +147,13 @@ Notes:
 
 사후감사(worker) 모니터링 지갑 등록.
 
+Notes:
+- worker는 기본적으로 모든 새 tx에 대해 TxNote를 온체인에 기록합니다.
+- worker freeze 정책:
+  - worker는 **LLM postaudit 결과(label)** 로만 freeze 여부를 결정합니다.
+  - postaudit 프롬프트에서 `receipt.status == 0x0`(revert/failure) 인 경우 label="SAFE" 를 강제하도록 설계되어 있어,
+    정상적으로는 revert tx로 인해 freeze 되지 않습니다. (TxNote는 기록)
+
 Request:
 
 ```json
@@ -206,4 +213,3 @@ Response:
   }
 }
 ```
-

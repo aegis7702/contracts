@@ -253,13 +253,13 @@ class GrokProvider(BaseLLMProvider):
         return getattr(resp, "content", str(resp))
 
 
-def build_llm_caller(platform) -> LLMCaller:
+def build_llm_caller(platform: str) -> LLMCaller:
     if platform == "grok":
         provider = LLMProvider.GROK
     elif platform == "openai":
         provider = LLMProvider.OPENAI
     else:
-        ValueError("no support platform")
+        raise ValueError(f"Unsupported LLM provider: {platform!r} (expected 'openai' or 'grok')")
     if provider == LLMProvider.OPENAI:
         impl = OpenAIProvider()
     elif provider == LLMProvider.GROK:

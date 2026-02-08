@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 
 from ai.scan_impl_bytecode import audit_impl_bytecode, audit_swap_bytecode
 from ai.scan_tx_precheck import audit_tx_precheck
@@ -53,6 +54,24 @@ def _verdict_from_label(label: str) -> int:
     return 2
 
 
+def _hex_selector(data_hex: str) -> str:
+    if not isinstance(data_hex, str) or not data_hex.startswith("0x"):
+        return ""
+    if len(data_hex) < 10:
+        return ""
+    return data_hex[:10].lower()
+
+
+def _auth_delegate_address(auth: Any) -> Optional[str]:
+    if not isinstance(auth, dict):
+        return None
+    for k in ("address", "delegateTo", "delegate_to", "delegate", "target"):
+        v = auth.get(k)
+        if isinstance(v, str) and v.startswith("0x") and len(v) == 42:
+            return v
+    return None
+
+
 def _chain_ids_for_worker() -> List[int]:
     env = os.getenv("WORKER_CHAIN_IDS")
     if not env:
@@ -68,6 +87,31 @@ def _chain_ids_for_worker() -> List[int]:
 
 app = FastAPI(title="Aegis PoC API", version="0.1")
 _worker: Optional[WorkerThread] = None
+
+
+def _cors_allow_origins() -> List[str]:
+    env = (os.getenv("CORS_ALLOW_ORIGINS") or "").strip()
+    if not env:
+        # PoC default: allow all origins (non-credentialed).
+        return ["*"]
+    if env == "*":
+        return ["*"]
+    return [x.strip() for x in env.split(",") if x.strip()]
+
+
+_allow_origins = _cors_allow_origins()
+_allow_credentials = os.getenv("CORS_ALLOW_CREDENTIALS", "").strip().lower() in ("1", "true", "yes")
+if _allow_credentials and "*" in _allow_origins:
+    # Spec disallows wildcard when credentials are enabled.
+    _allow_credentials = False
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allow_origins,
+    allow_credentials=_allow_credentials,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
@@ -233,10 +277,31 @@ def tx_precheck(req: TxPrecheckRequest) -> TxPrecheckResponse:
     guard = WalletGuardClient(rpc)
 
     wallet = req.from_address
+    auth_list = req.authorizationList or []
+    selector = _hex_selector(req.data or "")
+    delegate_targets = [x for x in (_auth_delegate_address(a) for a in auth_list) if x]
+    tx_ctx = {
+        "from": req.from_address,
+        "to": req.to,
+        "value": req.value,
+        "data": req.data,
+        "type": req.txType,
+        "authorizationList": auth_list,
+        # Derived fields (best-effort). These are NOT used for rule-based blocking, only to help the LLM.
+        "selector": selector,
+        "authorizationListDelegateTargets": delegate_targets,
+        "aegis": {
+            "expectedGuard": deps.guard,
+            "registry": deps.registry,
+        },
+    }
+
+    # Load current impl note (supporting context). If wallet isn't delegated yet, continue anyway.
+    impl_record_json: Dict[str, Any] = {}
     try:
         impl = guard.get_implementation(wallet)
         rec = registry.get_record_current(impl)
-        impl_record_json: Dict[str, Any] = {
+        impl_record_json = {
             "implAddress": impl,
             "verdict": rec.verdict,
             "name": rec.name,
@@ -247,17 +312,22 @@ def tx_precheck(req: TxPrecheckRequest) -> TxPrecheckResponse:
             "codehash": rec.codehash,
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to load wallet current impl record: {e!r}")
+        impl_record_json = {"error": f"failed to load wallet current impl record: {e!r}", "implAddress": None}
 
-    tx_ctx = {
-        "from": req.from_address,
-        "to": req.to,
-        "value": req.value,
-        "data": req.data,
-        "type": req.txType,
-        "authorizationList": req.authorizationList,
-    }
-    audit = audit_tx_precheck(chain_id=chain_id, tx=tx_ctx, impl_record=impl_record_json)
+    try:
+        audit = audit_tx_precheck(chain_id=chain_id, tx=tx_ctx, impl_record=impl_record_json)
+    except Exception as e:
+        # LLM-only blocking policy: if the precheck pipeline is down, do NOT block deterministically.
+        # Return SAFE with low confidence and an explicit warning.
+        audit = {
+            "label": "SAFE",
+            "confidence": 0.0,
+            "name": "PrecheckError",
+            "summary": "Precheck failed (LLM/service error). Allowing by policy.",
+            "description": "The precheck service failed to produce a valid result.\nNo deterministic block was applied.\nProceed with caution.",
+            "reasons": [f"precheck error: {e!r}"],
+            "matched_patterns": [],
+        }
     reasons_text = _join_reasons(audit.get("reasons", []))
     allow = str(audit.get("label", "UNSAFE")).upper() == "SAFE"
 

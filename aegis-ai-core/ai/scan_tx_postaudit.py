@@ -51,26 +51,6 @@ def audit_tx_postaudit(
     model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4o-mini")
     reasoning = reasoning or os.getenv("AEGIS_LLM_REASONING", "none")
 
-    if provider == "mock":
-        status = receipt.get("status")
-        # JSON-RPC receipts return hex strings ("0x1"/"0x0") on most nodes.
-        status_i = int(status, 16) if isinstance(status, str) and status.startswith("0x") else int(status or 0)
-        label = "SAFE" if status_i == 1 else "UNSAFE"
-        reasons = []
-        if status_i == 1:
-            reasons.append("receipt.status=1 (success)")
-        else:
-            reasons.append(f"receipt.status={status} (failure)")
-        return {
-            "label": label,
-            "confidence": 0.65 if label == "SAFE" else 0.95,
-            "name": f"PostAudit@{str(tx.get('hash') or '')[:10]}",
-            "summary": f"Mock postaudit: {label}",
-            "description": "Mock analysis result.\nBased on receipt status only.\nFor e2e flow testing only.",
-            "reasons": reasons,
-            "matched_patterns": [],
-        }
-
     system_prompt = PROMPT
     system_prompt = system_prompt.replace("{chain_id}", str(chain_id))
     system_prompt = system_prompt.replace("{tx_json}", json.dumps(tx, ensure_ascii=False, indent=2))
