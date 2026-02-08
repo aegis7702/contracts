@@ -35,6 +35,28 @@ Response:
 { "ok": true }
 ```
 
+### `POST /v1/chat`
+
+Minimal LLM wrapper endpoint.
+
+Request:
+
+```json
+{
+  "text": "Write a one-line summary of EIP-7702.",
+  "system": "optional system prompt",
+  "model": "optional model override",
+  "maxTokens": 200,
+  "temperature": 0.2
+}
+```
+
+Response:
+
+```json
+{ "text": "..." }
+```
+
 ### `POST /v1/tx/precheck`
 
 Precheck API called by a 7702 wallet before broadcasting a transaction.
