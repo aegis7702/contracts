@@ -298,10 +298,6 @@ npx hardhat run scripts/deploySepoliaAll.js --network sepolia
 npm run deploy:sepolia
 ```
 
-The 2026-02-07 deployment addresses are summarized in `README.md`. For detailed artifacts, see:
-- `deployments/sepolia-latest.json`
-- `deployments/sepolia-2026-02-07T04-57-31-823Z.json`
-
 ---
 
 ## 9) Common issues / troubleshooting
