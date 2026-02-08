@@ -48,7 +48,7 @@ def audit_tx_postaudit(
     reasoning: str = "",
 ) -> Dict[str, Any]:
     provider = provider or os.getenv("AEGIS_LLM_PROVIDER", "openai")
-    model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4o-mini")
+    model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4.1-2025-04-14")
     reasoning = reasoning or os.getenv("AEGIS_LLM_REASONING", "none")
 
     system_prompt = PROMPT

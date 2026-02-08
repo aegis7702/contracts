@@ -53,7 +53,7 @@ def audit_impl_bytecode(
     reasoning: str = "",
 ) -> Dict[str, Any]:
     provider = provider or os.getenv("AEGIS_LLM_PROVIDER", "openai")
-    model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4o-mini")
+    model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4.1-2025-04-14")
     reasoning = reasoning or os.getenv("AEGIS_LLM_REASONING", "none")
 
     prompt = _read_prompt(PROMPT_IMPL)
@@ -89,7 +89,7 @@ def audit_swap_bytecode(
     reasoning: str = "",
 ) -> Dict[str, Any]:
     provider = provider or os.getenv("AEGIS_LLM_PROVIDER", "openai")
-    model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4o-mini")
+    model = model or os.getenv("AEGIS_LLM_MODEL", "gpt-4.1-2025-04-14")
     reasoning = reasoning or os.getenv("AEGIS_LLM_REASONING", "none")
 
     prompt = _read_prompt(PROMPT_SWAP)
@@ -121,7 +121,7 @@ def main() -> None:
     p.add_argument("--impl-address", required=True)
     p.add_argument("--bytecode-hex", required=True)
     p.add_argument("--provider", default=os.getenv("AEGIS_LLM_PROVIDER", "openai"))
-    p.add_argument("--model", default=os.getenv("AEGIS_LLM_MODEL", "gpt-4o-mini"))
+    p.add_argument("--model", default=os.getenv("AEGIS_LLM_MODEL", "gpt-4.1-2025-04-14"))
     p.add_argument("--reasoning", default=os.getenv("AEGIS_LLM_REASONING", "none"))
     args = p.parse_args()
 

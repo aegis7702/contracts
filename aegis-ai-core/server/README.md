@@ -70,7 +70,7 @@ export CORS_ALLOW_CREDENTIALS=true
 ### LLM config
 
 - `AEGIS_LLM_PROVIDER`: `openai` (default) | `grok`
-- `AEGIS_LLM_MODEL`: (default `gpt-4o-mini`)
+- `AEGIS_LLM_MODEL`: (default `gpt-4.1-2025-04-14`)
 - `AEGIS_LLM_REASONING`: `none` | `low` | `medium` | `high` (only if supported by the model)
 
 ## Run (Local)

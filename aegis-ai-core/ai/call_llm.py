@@ -70,7 +70,7 @@ class OpenAIProvider(BaseLLMProvider):
     def chat(
         self,
         messages: List[Dict[str, str]],
-        model: str = "gpt-4o-mini",
+        model: str = "gpt-4.1-2025-04-14",
         **kwargs: Any,
     ) -> str:
         """
